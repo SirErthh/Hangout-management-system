@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -6,6 +7,7 @@ import { Calendar, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 const Events = () => {
+  const navigate = useNavigate();
   const [quantities, setQuantities] = useState<{ [key: number]: number }>({
     101: 1,
     102: 1,
@@ -25,8 +27,16 @@ const Events = () => {
 
   const handleConfirmOrder = (event: typeof events[0]) => {
     const qty = quantities[event.id] || 1;
-    toast.success("Order Confirmed!", {
-      description: `${qty}x ${event.name} - Total: ${event.price * qty} THB`,
+    navigate('/confirm-order', {
+      state: {
+        order: {
+          event: event.name,
+          date: event.date,
+          price: event.price,
+          quantity: qty,
+          total: event.price * qty
+        }
+      }
     });
   };
 
@@ -100,7 +110,7 @@ const Events = () => {
                         onClick={() => handleConfirmOrder(event)}
                         className="bg-gradient-primary hover:opacity-90"
                       >
-                        Confirm Order
+                        Order
                       </Button>
                     </td>
                   </tr>

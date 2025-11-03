@@ -1,16 +1,17 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Calendar, Users, Clock, CheckCircle, XCircle } from "lucide-react";
 
 const StaffReservations = () => {
+  const navigate = useNavigate();
   const [reservations, setReservations] = useState([
-    { id: 1, customer: "Alice Johnson", date: "2025-11-01", time: "19:00", partySize: 4, status: "pending" },
-    { id: 2, customer: "Mike Brown", date: "2025-11-01", time: "20:30", partySize: 2, status: "pending" },
-    { id: 3, customer: "Sarah Davis", date: "2025-11-02", time: "18:00", partySize: 6, status: "confirmed" }
+    { id: 1, customer: "Alice Johnson", date: "2025-11-01", partySize: 4, status: "pending" },
+    { id: 2, customer: "Mike Brown", date: "2025-11-01", partySize: 2, status: "pending" },
+    { id: 3, customer: "Sarah Davis", date: "2025-11-02", partySize: 6, status: "confirmed", table: "4" }
   ]);
 
   const updateReservationStatus = (id: number, newStatus: string) => {
@@ -18,6 +19,18 @@ const StaffReservations = () => {
       r.id === id ? { ...r, status: newStatus } : r
     ));
     toast.success(`Reservation ${newStatus}`);
+  };
+
+  const handleAutoAssign = (reservation: any) => {
+    // Auto assign logic - just mark as confirmed
+    setReservations(reservations.map(r => 
+      r.id === reservation.id ? { ...r, status: 'confirmed' } : r
+    ));
+    toast.success(`Table auto-assigned for ${reservation.customer}`);
+  };
+
+  const handleManualAssign = (reservation: any) => {
+    navigate('/staff/table-assignment', { state: { reservation } });
   };
 
   const getStatusColor = (status: string) => {
@@ -100,27 +113,37 @@ const StaffReservations = () => {
                     <span>{new Date(reservation.date).toLocaleDateString()}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span>{reservation.time}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
                     <Users className="h-4 w-4 text-muted-foreground" />
                     <span>{reservation.partySize} guests</span>
                   </div>
+                  {reservation.table && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="font-semibold">Table: {reservation.table}</span>
+                    </div>
+                  )}
                 </div>
 
                 {reservation.status === 'pending' && (
                   <div className="flex gap-2">
                     <Button
-                      onClick={() => updateReservationStatus(reservation.id, 'confirmed')}
+                      onClick={() => handleAutoAssign(reservation)}
                       className="bg-green-500 hover:bg-green-600"
+                      size="sm"
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
-                      Confirm
+                      Auto Assign
+                    </Button>
+                    <Button
+                      onClick={() => handleManualAssign(reservation)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Manual Assign
                     </Button>
                     <Button
                       onClick={() => updateReservationStatus(reservation.id, 'cancelled')}
                       variant="destructive"
+                      size="sm"
                     >
                       <XCircle className="h-4 w-4 mr-2" />
                       Cancel
@@ -128,21 +151,17 @@ const StaffReservations = () => {
                   </div>
                 )}
 
-                {reservation.status !== 'pending' && (
-                  <Select
-                    value={reservation.status}
-                    onValueChange={(newStatus) => updateReservationStatus(reservation.id, newStatus)}
-                  >
-                    <SelectTrigger className="w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="confirmed">Confirmed</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
+                {reservation.status === 'confirmed' && (
+                  <Badge className="bg-green-500">
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Confirmed
+                  </Badge>
+                )}
+
+                {reservation.status === 'cancelled' && (
+                  <Badge variant="destructive">
+                    Cancelled
+                  </Badge>
                 )}
               </div>
             </CardContent>

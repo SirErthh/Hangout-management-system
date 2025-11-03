@@ -47,6 +47,7 @@ const StaffFnB = () => {
       case 'preparing': return 'bg-blue-500';
       case 'ready': return 'bg-green-500';
       case 'delivered': return 'bg-gray-500';
+      case 'cancel': return 'bg-red-500';
       default: return 'bg-gray-500';
     }
   };
@@ -156,6 +157,9 @@ const StaffFnB = () => {
                         <SelectItem value="preparing">Preparing</SelectItem>
                         <SelectItem value="ready">Ready</SelectItem>
                         <SelectItem value="delivered">Delivered</SelectItem>
+                        <SelectItem value="cancel">
+                          <span className="text-red-500">Cancel</span>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

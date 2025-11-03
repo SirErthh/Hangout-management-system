@@ -35,6 +35,7 @@ const Sidebar = ({ role }: SidebarProps) => {
     { to: "/admin", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/admin/users", icon: Users, label: "Users & Roles" },
     { to: "/admin/events", icon: Calendar, label: "Events" },
+    { to: "/admin/menu", icon: UtensilsCrossed, label: "F&B Menu" },
     { to: "/admin/closure", icon: DollarSign, label: "Day Closure" },
   ];
 
@@ -55,7 +56,7 @@ const Sidebar = ({ role }: SidebarProps) => {
                 `flex items-center gap-3 px-4 py-3 rounded-xl transition-smooth ${
                   isActive
                     ? "bg-primary text-primary-foreground shadow-md"
-                    : "hover:bg-sidebar-accent text-sidebar-foreground"
+                    : "hover:bg-sidebar-accent text-sidebar-foreground hover:text-sidebar-foreground"
                 }`
               }
             >

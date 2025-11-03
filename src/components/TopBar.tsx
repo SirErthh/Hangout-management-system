@@ -1,9 +1,17 @@
-import { User, LogOut } from "lucide-react";
+import { User, LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface TopBarProps {
-  user: { email: string; role: string } | null;
+  user: { fname?: string; lname?: string; email: string; role: string } | null;
   onLogout: () => void;
 }
 
@@ -25,20 +33,31 @@ const TopBar = ({ user, onLogout }: TopBarProps) => {
         <div className="flex items-center gap-4">
           {user ? (
             <>
-              <div className="flex items-center gap-2 text-white/90 text-sm bg-white/10 px-4 py-2 rounded-full backdrop-blur-sm">
-                <User className="h-4 w-4" />
-                <span>{user.email}</span>
-                <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">{user.role}</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onLogout}
-                className="text-white hover:bg-white/20"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="text-white hover:bg-white/20 gap-2"
+                  >
+                    <User className="h-4 w-4" />
+                    <span>{user.fname || user.lname ? `${user.fname} ${user.lname}`.trim() : user.email}</span>
+                    <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">{user.role}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate('/profile')}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Edit Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onLogout}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
             <>

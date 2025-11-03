@@ -2,16 +2,18 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Ticket, CheckCircle, XCircle } from "lucide-react";
+import { Ticket, CheckCircle, XCircle, Search } from "lucide-react";
 
 const StaffTickets = () => {
   const [orders, setOrders] = useState([
-    { id: 1, customer: "John Doe", event: "Jazz Night", quantity: 2, total: 1000, status: "pending" },
-    { id: 2, customer: "Jane Smith", event: "EDM Party", quantity: 4, total: 3200, status: "pending" },
-    { id: 3, customer: "Bob Wilson", event: "Jazz Night", quantity: 1, total: 500, status: "confirmed" }
+    { id: 1, customer: "John Doe", event: "Jazz Night", quantity: 2, total: 1000, status: "pending", ticketCode: "TMDABC001" },
+    { id: 2, customer: "Jane Smith", event: "EDM Party", quantity: 4, total: 3200, status: "pending", ticketCode: "TMDXYZ002" },
+    { id: 3, customer: "Bob Wilson", event: "Jazz Night", quantity: 1, total: 500, status: "confirmed", ticketCode: "TMDDEF003" }
   ]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const updateOrderStatus = (orderId: number, newStatus: string) => {
     setOrders(orders.map(o => 
@@ -31,9 +33,20 @@ const StaffTickets = () => {
 
   return (
     <div className="p-6 space-y-6 animate-slide-up">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Ticket Orders</h1>
-        <p className="text-muted-foreground">Manage and process ticket purchases</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Ticket Orders</h1>
+          <p className="text-muted-foreground">Manage and process ticket purchases</p>
+        </div>
+        <div className="relative w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search ticket code..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
       </div>
 
       <div className="grid md:grid-cols-3 gap-6 mb-6">
@@ -70,7 +83,9 @@ const StaffTickets = () => {
       </div>
 
       <div className="space-y-4">
-        {orders.map(order => (
+        {orders
+          .filter(order => order.ticketCode.toLowerCase().includes(searchQuery.toLowerCase()))
+          .map(order => (
           <Card key={order.id} className="glass-effect border-2">
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -91,6 +106,9 @@ const StaffTickets = () => {
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Ticket className="h-4 w-4" />
                     <span>{order.quantity} tickets</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mb-1">
+                    Code: {order.ticketCode}
                   </div>
                   <p className="text-2xl font-bold">฿{order.total.toLocaleString()}</p>
                 </div>

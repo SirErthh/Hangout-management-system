@@ -9,18 +9,23 @@ import Sidebar from "./components/Sidebar";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Profile from "./pages/Profile";
 import Customer from "./pages/Customer";
 import Events from "./pages/Events";
+import ConfirmOrder from "./pages/ConfirmOrder";
 import Reserve from "./pages/Reserve";
 import Menu from "./pages/Menu";
 import MyOrders from "./pages/MyOrders";
+import ConfirmMenu from "./pages/ConfirmMenu";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminUsers from "./pages/admin/Users";
 import AdminEvents from "./pages/admin/Events";
+import AdminMenu from "./pages/admin/MenuManagement";
 import DayClosure from "./pages/admin/DayClosure";
 import StaffDashboard from "./pages/staff/Dashboard";
 import StaffTickets from "./pages/staff/Tickets";
 import StaffReservations from "./pages/staff/Reservations";
+import StaffTableAssignment from "./pages/staff/TableAssignment";
 import StaffFnB from "./pages/staff/FnB";
 import NotFound from "./pages/NotFound";
 
@@ -76,6 +81,10 @@ const App = () => {
                   <Route path="/" element={<Landing />} />
                   <Route path="/login" element={<Login onLogin={handleLogin} />} />
                   <Route path="/register" element={<Register />} />
+                  <Route 
+                    path="/profile" 
+                    element={currentUser ? <Profile /> : <Navigate to="/login" />} 
+                  />
                   
                   {/* Customer Routes */}
                   <Route 
@@ -87,12 +96,20 @@ const App = () => {
                     element={<Events />} 
                   />
                   <Route 
+                    path="/confirm-order" 
+                    element={currentUser?.role === 'customer' ? <ConfirmOrder /> : <Navigate to="/login" />} 
+                  />
+                  <Route 
                     path="/reserve" 
                     element={currentUser?.role === 'customer' ? <Reserve /> : <Navigate to="/login" />} 
                   />
                   <Route 
                     path="/menu" 
                     element={currentUser?.role === 'customer' ? <Menu /> : <Navigate to="/login" />} 
+                  />
+                  <Route 
+                    path="/confirm-menu" 
+                    element={currentUser?.role === 'customer' ? <ConfirmMenu /> : <Navigate to="/login" />} 
                   />
                   <Route 
                     path="/my-orders" 
@@ -113,6 +130,10 @@ const App = () => {
                     element={currentUser?.role === 'admin' ? <AdminEvents /> : <Navigate to="/login" />} 
                   />
                   <Route 
+                    path="/admin/menu" 
+                    element={currentUser?.role === 'admin' ? <AdminMenu /> : <Navigate to="/login" />} 
+                  />
+                  <Route 
                     path="/admin/closure" 
                     element={currentUser?.role === 'admin' ? <DayClosure /> : <Navigate to="/login" />} 
                   />
@@ -129,6 +150,10 @@ const App = () => {
                   <Route 
                     path="/staff/reservations" 
                     element={currentUser?.role === 'staff' ? <StaffReservations /> : <Navigate to="/login" />} 
+                  />
+                  <Route 
+                    path="/staff/table-assignment" 
+                    element={currentUser?.role === 'staff' ? <StaffTableAssignment /> : <Navigate to="/login" />} 
                   />
                   <Route 
                     path="/staff/fnb" 

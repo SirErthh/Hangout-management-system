@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +8,7 @@ import { toast } from "sonner";
 import { Plus, Minus, ShoppingCart } from "lucide-react";
 
 const Menu = () => {
+  const navigate = useNavigate();
   const [cart, setCart] = useState<Record<number, number>>({});
 
   const menuItems = [
@@ -100,32 +102,21 @@ const Menu = () => {
       toast.error("Your cart is empty");
       return;
     }
-
-    const orders = JSON.parse(localStorage.getItem('orders') || '[]');
-    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
     
     const orderItems = Object.entries(cart).map(([itemId, qty]) => {
       const item = menuItems.find(i => i.id === parseInt(itemId));
       return {
-        ...item,
+        name: item?.name,
+        price: item?.price,
         quantity: qty
       };
     });
 
-    const newOrder = {
-      id: Date.now(),
-      userId: currentUser.id,
-      type: 'fnb',
-      items: orderItems,
-      total: getTotalPrice(),
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    };
-
-    orders.push(newOrder);
-    localStorage.setItem('orders', JSON.stringify(orders));
-    setCart({});
-    toast.success("Order placed successfully!");
+    navigate('/confirm-menu', {
+      state: {
+        cart: orderItems
+      }
+    });
   };
 
   const renderMenuItems = (category: string) => {

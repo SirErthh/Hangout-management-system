@@ -1,20 +1,41 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Users, Clock } from "lucide-react";
+import { Users, AlertCircle, Calendar as CalendarIcon } from "lucide-react";
 
 const Reserve = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [partySize, setPartySize] = useState<number>(2);
-  const [time, setTime] = useState<string>("19:00");
+  const [showEventDialog, setShowEventDialog] = useState(false);
+  const [eventDates, setEventDates] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Load event dates from localStorage
+    const events = JSON.parse(localStorage.getItem('events') || '[]');
+    const dates = events.map((e: any) => e.date);
+    setEventDates(dates);
+  }, []);
+
+  const isEventDate = (selectedDate: Date | undefined) => {
+    if (!selectedDate) return false;
+    const dateStr = selectedDate.toISOString().split('T')[0];
+    return eventDates.includes(dateStr);
+  };
 
   const handleReserve = () => {
     if (!date) {
       toast.error("Please select a date");
+      return;
+    }
+
+    if (isEventDate(date)) {
+      setShowEventDialog(true);
       return;
     }
     
@@ -24,8 +45,8 @@ const Reserve = () => {
     const newReservation = {
       id: Date.now(),
       userId: currentUser.id,
+      customer: `${currentUser.fname} ${currentUser.lname}`,
       date: date.toISOString(),
-      time,
       partySize,
       status: 'pending',
       createdAt: new Date().toISOString()
@@ -56,7 +77,7 @@ const Reserve = () => {
               selected={date}
               onSelect={setDate}
               className="rounded-md border"
-              disabled={(date) => date < new Date()}
+              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
             />
           </CardContent>
         </Card>
@@ -68,19 +89,21 @@ const Reserve = () => {
               <CardDescription>Complete your booking</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="time" className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Time
-                </Label>
-                <Input
-                  id="time"
-                  type="time"
-                  value={time}
-                  onChange={(e) => setTime(e.target.value)}
-                  className="w-full"
-                />
-              </div>
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Tables are available until 10:00 PM. If not confirmed, reservations will be released automatically.
+                </AlertDescription>
+              </Alert>
+
+              {isEventDate(date) && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    This date has an event. Reservations are closed. Please purchase event tickets instead.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="partySize" className="flex items-center gap-2">
@@ -103,7 +126,6 @@ const Reserve = () => {
                   <p className="text-sm font-medium">Reservation Summary</p>
                   <div className="text-sm text-muted-foreground space-y-1">
                     <p>Date: {date?.toLocaleDateString()}</p>
-                    <p>Time: {time}</p>
                     <p>Party Size: {partySize} {partySize === 1 ? 'person' : 'people'}</p>
                   </div>
                 </div>
@@ -112,6 +134,7 @@ const Reserve = () => {
                   onClick={handleReserve}
                   className="w-full"
                   size="lg"
+                  disabled={isEventDate(date)}
                 >
                   Confirm Reservation
                 </Button>
@@ -120,6 +143,29 @@ const Reserve = () => {
           </Card>
         </div>
       </div>
+
+      <Dialog open={showEventDialog} onOpenChange={setShowEventDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Event Day - Reservations Closed</DialogTitle>
+            <DialogDescription>
+              This date has a special event. Table reservations are not available. 
+              Would you like to purchase event tickets instead?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => setShowEventDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => {
+              setShowEventDialog(false);
+              window.location.href = '/events';
+            }}>
+              View Events
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
