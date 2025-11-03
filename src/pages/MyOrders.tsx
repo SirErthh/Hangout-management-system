@@ -1,20 +1,25 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, UtensilsCrossed, Ticket } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Calendar, UtensilsCrossed, Ticket, Eye } from "lucide-react";
 
 const MyOrders = () => {
   const [orders, setOrders] = useState<any[]>([]);
   const [reservations, setReservations] = useState<any[]>([]);
+  const [ticketOrders, setTicketOrders] = useState<any[]>([]);
 
   useEffect(() => {
     const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
     const allOrders = JSON.parse(localStorage.getItem('orders') || '[]');
     const allReservations = JSON.parse(localStorage.getItem('reservations') || '[]');
+    const allTicketOrders = JSON.parse(localStorage.getItem('ticketOrders') || '[]');
 
     setOrders(allOrders.filter((o: any) => o.userId === currentUser.id));
     setReservations(allReservations.filter((r: any) => r.userId === currentUser.id));
+    setTicketOrders(allTicketOrders.filter((t: any) => t.userId === currentUser.id));
   }, []);
 
   const getStatusColor = (status: string) => {
@@ -51,7 +56,7 @@ const MyOrders = () => {
         </TabsList>
 
         <TabsContent value="tickets" className="mt-6 space-y-4">
-          {orders.filter(o => o.type === 'ticket').length === 0 ? (
+          {ticketOrders.length === 0 ? (
             <Card>
               <CardContent className="p-12 text-center">
                 <Ticket className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
@@ -59,12 +64,12 @@ const MyOrders = () => {
               </CardContent>
             </Card>
           ) : (
-            orders.filter(o => o.type === 'ticket').map(order => (
+            ticketOrders.map(order => (
               <Card key={order.id} className="glass-effect">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div>
-                      <CardTitle>{order.eventName || 'Event Ticket'}</CardTitle>
+                      <CardTitle>{order.event}</CardTitle>
                       <CardDescription>
                         Order #{order.id} • {new Date(order.createdAt).toLocaleDateString()}
                       </CardDescription>
@@ -75,15 +80,35 @@ const MyOrders = () => {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Quantity:</span>
-                      <span className="font-medium">{order.quantity || 1} tickets</span>
+                      <span className="font-medium">{order.quantity} tickets</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Total:</span>
                       <span className="font-bold">฿{order.total}</span>
                     </div>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" className="w-full">
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Ticket Codes
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Ticket Codes</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-2">
+                          {order.tickets?.map((code: string, idx: number) => (
+                            <div key={idx} className="p-3 bg-muted rounded-lg font-mono text-center text-lg">
+                              {code}
+                            </div>
+                          ))}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </CardContent>
               </Card>

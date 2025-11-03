@@ -1,25 +1,58 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Ticket, CheckCircle, XCircle, Search } from "lucide-react";
+import { Ticket, CheckCircle, XCircle, Search, Eye } from "lucide-react";
 
 const StaffTickets = () => {
-  const [orders, setOrders] = useState([
-    { id: 1, customer: "John Doe", event: "Jazz Night", quantity: 2, total: 1000, status: "pending", ticketCode: "TMDABC001" },
-    { id: 2, customer: "Jane Smith", event: "EDM Party", quantity: 4, total: 3200, status: "pending", ticketCode: "TMDXYZ002" },
-    { id: 3, customer: "Bob Wilson", event: "Jazz Night", quantity: 1, total: 500, status: "confirmed", ticketCode: "TMDDEF003" }
-  ]);
+  const [orders, setOrders] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
+  useEffect(() => {
+    const ticketOrders = JSON.parse(localStorage.getItem('ticketOrders') || '[]');
+    setOrders(ticketOrders);
+  }, []);
+
   const updateOrderStatus = (orderId: number, newStatus: string) => {
-    setOrders(orders.map(o => 
+    const updated = orders.map(o => 
       o.id === orderId ? { ...o, status: newStatus } : o
-    ));
+    );
+    setOrders(updated);
+    localStorage.setItem('ticketOrders', JSON.stringify(updated));
     toast.success(`Order ${newStatus}`);
+  };
+
+  const confirmTicket = (orderId: number, ticketCode: string) => {
+    const updated = orders.map(o => {
+      if (o.id === orderId) {
+        const confirmedTickets = [...(o.confirmedTickets || []), ticketCode];
+        const allConfirmed = confirmedTickets.length === o.tickets.length;
+        return { 
+          ...o, 
+          confirmedTickets,
+          status: allConfirmed ? 'confirmed' : o.status 
+        };
+      }
+      return o;
+    });
+    setOrders(updated);
+    localStorage.setItem('ticketOrders', JSON.stringify(updated));
+    toast.success(`Ticket ${ticketCode} confirmed`);
+  };
+
+  const confirmAllTickets = (orderId: number) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    
+    const updated = orders.map(o => 
+      o.id === orderId ? { ...o, confirmedTickets: o.tickets, status: 'confirmed' } : o
+    );
+    setOrders(updated);
+    localStorage.setItem('ticketOrders', JSON.stringify(updated));
+    toast.success('All tickets confirmed');
   };
 
   const getStatusColor = (status: string) => {
@@ -84,7 +117,11 @@ const StaffTickets = () => {
 
       <div className="space-y-4">
         {orders
-          .filter(order => order.ticketCode.toLowerCase().includes(searchQuery.toLowerCase()))
+          .filter(order => 
+            order.tickets?.some((code: string) => 
+              code.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+          )
           .map(order => (
           <Card key={order.id} className="glass-effect border-2">
             <CardHeader>
@@ -101,51 +138,70 @@ const StaffTickets = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Ticket className="h-4 w-4" />
                     <span>{order.quantity} tickets</span>
                   </div>
-                  <div className="text-xs text-muted-foreground mb-1">
-                    Code: {order.ticketCode}
-                  </div>
                   <p className="text-2xl font-bold">฿{order.total.toLocaleString()}</p>
                 </div>
 
-                {order.status === 'pending' && (
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => updateOrderStatus(order.id, 'confirmed')}
-                      className="bg-green-500 hover:bg-green-600"
-                    >
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Confirm
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full">
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Ticket Codes
                     </Button>
-                    <Button
-                      onClick={() => updateOrderStatus(order.id, 'cancelled')}
-                      variant="destructive"
-                    >
-                      <XCircle className="h-4 w-4 mr-2" />
-                      Cancel
-                    </Button>
-                  </div>
-                )}
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Ticket Codes - Order #{order.id}</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {order.tickets?.map((code: string, idx: number) => {
+                        const isConfirmed = order.confirmedTickets?.includes(code);
+                        return (
+                          <div key={idx} className="flex items-center gap-2">
+                            <div className="flex-1 p-2 bg-muted rounded font-mono text-center">
+                              {code}
+                            </div>
+                            {order.status === 'pending' && !isConfirmed && (
+                              <Button
+                                size="sm"
+                                onClick={() => confirmTicket(order.id, code)}
+                                className="bg-green-500 hover:bg-green-600"
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {isConfirmed && (
+                              <Badge className="bg-green-500">✓</Badge>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {order.status === 'pending' && (
+                      <Button 
+                        onClick={() => confirmAllTickets(order.id)}
+                        className="w-full bg-green-500 hover:bg-green-600"
+                      >
+                        Confirm All Tickets
+                      </Button>
+                    )}
+                  </DialogContent>
+                </Dialog>
 
-                {order.status !== 'pending' && (
-                  <Select
-                    value={order.status}
-                    onValueChange={(newStatus) => updateOrderStatus(order.id, newStatus)}
+                {order.status === 'pending' && (
+                  <Button
+                    onClick={() => updateOrderStatus(order.id, 'cancelled')}
+                    variant="destructive"
+                    className="w-full"
                   >
-                    <SelectTrigger className="w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="confirmed">Confirmed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancel Order
+                  </Button>
                 )}
               </div>
             </CardContent>

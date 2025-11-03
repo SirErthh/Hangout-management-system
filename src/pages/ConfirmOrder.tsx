@@ -20,13 +20,28 @@ const ConfirmOrder = () => {
     }
   }, [location, navigate]);
 
-  const generateTicketCode = (index: number) => {
-    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const randomLetters = Array.from({ length: 3 }, () => 
-      letters[Math.floor(Math.random() * letters.length)]
-    ).join('');
-    const number = String(index + 1).padStart(3, '0');
-    return `TMD${randomLetters}${number}`;
+  const generateTicketCodes = (quantity: number) => {
+    // Get all existing tickets to find the next number
+    const allOrders = JSON.parse(localStorage.getItem('ticketOrders') || '[]');
+    const allTickets = allOrders.flatMap((order: any) => order.tickets || []);
+    
+    // Find the highest number used
+    let highestNum = 0;
+    allTickets.forEach((code: string) => {
+      const numMatch = code.match(/\d+$/);
+      if (numMatch) {
+        const num = parseInt(numMatch[0]);
+        if (num > highestNum) highestNum = num;
+      }
+    });
+
+    // Generate new codes starting from the next number
+    const codes = [];
+    for (let i = 0; i < quantity; i++) {
+      const number = String(highestNum + i + 1).padStart(3, '0');
+      codes.push(`GEF${number}`);
+    }
+    return codes;
   };
 
   const handleConfirm = () => {
@@ -35,9 +50,7 @@ const ConfirmOrder = () => {
     const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
     const orders = JSON.parse(localStorage.getItem('ticketOrders') || '[]');
     
-    const tickets = Array.from({ length: orderDetails.quantity }, (_, i) => 
-      generateTicketCode(i)
-    );
+    const tickets = generateTicketCodes(orderDetails.quantity);
 
     const newOrder = {
       id: Date.now(),
@@ -48,7 +61,8 @@ const ConfirmOrder = () => {
       total: orderDetails.total,
       tickets: tickets,
       status: 'pending',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      date: orderDetails.date
     };
 
     orders.push(newOrder);

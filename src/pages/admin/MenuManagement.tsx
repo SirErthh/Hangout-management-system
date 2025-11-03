@@ -21,7 +21,8 @@ const MenuManagement = () => {
     name: "",
     category: "food",
     price: "",
-    image: ""
+    image: "",
+    imageUrl: ""
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -30,7 +31,7 @@ const MenuManagement = () => {
     if (editingItem) {
       setMenuItems(menuItems.map(item => 
         item.id === editingItem.id 
-          ? { ...item, name: formData.name, category: formData.category, price: parseInt(formData.price), image: formData.image }
+          ? { ...item, name: formData.name, category: formData.category, price: parseInt(formData.price), image: formData.imageUrl || formData.image }
           : item
       ));
       toast.success("Menu item updated!");
@@ -40,7 +41,7 @@ const MenuManagement = () => {
         name: formData.name,
         category: formData.category,
         price: parseInt(formData.price),
-        image: formData.image
+        image: formData.imageUrl || formData.image
       };
       setMenuItems([...menuItems, newItem]);
       toast.success("Menu item created!");
@@ -48,16 +49,18 @@ const MenuManagement = () => {
 
     setIsOpen(false);
     setEditingItem(null);
-    setFormData({ name: "", category: "food", price: "", image: "" });
+    setFormData({ name: "", category: "food", price: "", image: "", imageUrl: "" });
   };
 
   const handleEdit = (item: any) => {
     setEditingItem(item);
+    const isUrl = item.image?.startsWith('http');
     setFormData({
       name: item.name,
       category: item.category,
       price: item.price.toString(),
-      image: item.image
+      image: isUrl ? "" : item.image,
+      imageUrl: isUrl ? item.image : ""
     });
     setIsOpen(true);
   };
@@ -69,7 +72,7 @@ const MenuManagement = () => {
 
   const handleNewItem = () => {
     setEditingItem(null);
-    setFormData({ name: "", category: "food", price: "", image: "" });
+    setFormData({ name: "", category: "food", price: "", image: "", imageUrl: "" });
     setIsOpen(true);
   };
 
@@ -131,13 +134,20 @@ const MenuManagement = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="image">Image (Emoji)</Label>
+                <Label htmlFor="imageUrl">Image URL</Label>
+                <Input
+                  id="imageUrl"
+                  type="url"
+                  value={formData.imageUrl}
+                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value, image: "" })}
+                  placeholder="https://example.com/image.jpg"
+                />
+                <p className="text-xs text-muted-foreground">Or use emoji instead:</p>
                 <Input
                   id="image"
                   value={formData.image}
-                  onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, image: e.target.value, imageUrl: "" })}
                   placeholder="🍔"
-                  required
                 />
               </div>
               <Button type="submit" className="w-full">
@@ -156,7 +166,13 @@ const MenuManagement = () => {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="text-4xl mb-2">{item.image}</div>
+                    {item.image?.startsWith('http') ? (
+                      <div className="w-full h-32 mb-2 overflow-hidden rounded-lg">
+                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="text-4xl mb-2">{item.image}</div>
+                    )}
                     <CardTitle>{item.name}</CardTitle>
                     <CardDescription className="mt-2 text-xl font-bold">฿{item.price}</CardDescription>
                   </div>
@@ -184,7 +200,13 @@ const MenuManagement = () => {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="text-4xl mb-2">{item.image}</div>
+                    {item.image?.startsWith('http') ? (
+                      <div className="w-full h-32 mb-2 overflow-hidden rounded-lg">
+                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="text-4xl mb-2">{item.image}</div>
+                    )}
                     <CardTitle>{item.name}</CardTitle>
                     <CardDescription className="mt-2 text-xl font-bold">฿{item.price}</CardDescription>
                   </div>

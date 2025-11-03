@@ -10,32 +10,63 @@ import { Plus, Calendar, Edit, Trash2 } from "lucide-react";
 
 const AdminEvents = () => {
   const [events, setEvents] = useState([
-    { id: 1, name: "Jazz Night", date: "2025-11-01", price: 500, description: "Live jazz performance" },
-    { id: 2, name: "EDM Party", date: "2025-11-15", price: 800, description: "Electronic dance music festival" }
+    { id: 1, name: "Jazz Night", date: "2025-11-01", price: 500, description: "Live jazz performance", image: "" },
+    { id: 2, name: "EDM Party", date: "2025-11-15", price: 800, description: "Electronic dance music festival", image: "" }
   ]);
   const [isOpen, setIsOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<any>(null);
   const [formData, setFormData] = useState({
     name: "",
     date: "",
     price: "",
-    description: ""
+    description: "",
+    image: ""
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const newEvent = {
-      id: Date.now(),
-      name: formData.name,
-      date: formData.date,
-      price: parseInt(formData.price),
-      description: formData.description
-    };
+    if (editingEvent) {
+      setEvents(events.map(evt => 
+        evt.id === editingEvent.id 
+          ? { ...evt, ...formData, price: parseInt(formData.price) }
+          : evt
+      ));
+      toast.success("Event updated successfully!");
+    } else {
+      const newEvent = {
+        id: Date.now(),
+        name: formData.name,
+        date: formData.date,
+        price: parseInt(formData.price),
+        description: formData.description,
+        image: formData.image
+      };
+      setEvents([...events, newEvent]);
+      toast.success("Event created successfully!");
+    }
 
-    setEvents([...events, newEvent]);
-    toast.success("Event created successfully!");
     setIsOpen(false);
-    setFormData({ name: "", date: "", price: "", description: "" });
+    setEditingEvent(null);
+    setFormData({ name: "", date: "", price: "", description: "", image: "" });
+  };
+
+  const handleEdit = (event: any) => {
+    setEditingEvent(event);
+    setFormData({
+      name: event.name,
+      date: event.date,
+      price: event.price.toString(),
+      description: event.description,
+      image: event.image || ""
+    });
+    setIsOpen(true);
+  };
+
+  const handleNewEvent = () => {
+    setEditingEvent(null);
+    setFormData({ name: "", date: "", price: "", description: "", image: "" });
+    setIsOpen(true);
   };
 
   const deleteEvent = (id: number) => {
@@ -53,15 +84,17 @@ const AdminEvents = () => {
         
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
-            <Button size="lg">
+            <Button size="lg" onClick={handleNewEvent}>
               <Plus className="h-4 w-4 mr-2" />
               Create Event
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create New Event</DialogTitle>
-              <DialogDescription>Add a new event to the system</DialogDescription>
+              <DialogTitle>{editingEvent ? 'Edit Event' : 'Create New Event'}</DialogTitle>
+              <DialogDescription>
+                {editingEvent ? 'Update event details' : 'Add a new event to the system'}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -102,7 +135,22 @@ const AdminEvents = () => {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full">Create Event</Button>
+              <div className="space-y-2">
+                <Label htmlFor="image">Image URL (optional)</Label>
+                <Input
+                  id="image"
+                  type="url"
+                  placeholder="https://example.com/image.jpg"
+                  value={formData.image}
+                  onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter an image URL for the event
+                </p>
+              </div>
+              <Button type="submit" className="w-full">
+                {editingEvent ? 'Update Event' : 'Create Event'}
+              </Button>
             </form>
           </DialogContent>
         </Dialog>
@@ -111,6 +159,15 @@ const AdminEvents = () => {
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {events.map(event => (
           <Card key={event.id} className="glass-effect border-2 hover:shadow-xl transition-smooth">
+            {event.image && (
+              <div className="w-full h-48 overflow-hidden rounded-t-lg">
+                <img 
+                  src={event.image} 
+                  alt={event.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -128,7 +185,12 @@ const AdminEvents = () => {
                 <span className="text-2xl font-bold">฿{event.price}</span>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex-1"
+                  onClick={() => handleEdit(event)}
+                >
                   <Edit className="h-4 w-4 mr-2" />
                   Edit
                 </Button>

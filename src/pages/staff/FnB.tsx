@@ -153,12 +153,11 @@ const StaffFnB = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
                         <SelectItem value="preparing">Preparing</SelectItem>
                         <SelectItem value="ready">Ready</SelectItem>
-                        <SelectItem value="delivered">Delivered</SelectItem>
-                        <SelectItem value="cancel">
-                          <span className="text-red-500">Cancel</span>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="cancelled" className="text-red-500">
+                          Cancel
                         </SelectItem>
                       </SelectContent>
                     </Select>

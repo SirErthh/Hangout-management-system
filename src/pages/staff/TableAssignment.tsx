@@ -10,7 +10,7 @@ const TableAssignment = () => {
   const location = useLocation();
   const reservation = location.state?.reservation;
   
-  const [tables] = useState([
+  const [tables, setTables] = useState([
     { id: 1, number: "1", capacity: 2, status: "available" },
     { id: 2, number: "2", capacity: 4, status: "available" },
     { id: 3, number: "3", capacity: 4, status: "occupied" },
@@ -31,7 +31,13 @@ const TableAssignment = () => {
     );
     localStorage.setItem('reservations', JSON.stringify(updated));
     
-    toast.success(`Table ${tableNumber} assigned to ${reservation.customer}`);
+    // Update table to occupied
+    const updatedTables = tables.map(t => 
+      t.number === tableNumber ? { ...t, status: 'occupied' } : t
+    );
+    setTables(updatedTables);
+    
+    toast.success(`Table ${tableNumber} assigned and marked as occupied!`);
     navigate('/staff/reservations');
   };
 
