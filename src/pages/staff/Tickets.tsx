@@ -197,10 +197,10 @@ const StaffTickets = () => {
                   <Button
                     onClick={() => updateOrderStatus(order.id, 'cancelled')}
                     variant="destructive"
-                    className="w-full"
+                    size="icon"
+                    className="h-8 w-8"
                   >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Cancel Order
+                    <XCircle className="h-4 w-4" />
                   </Button>
                 )}
               </div>

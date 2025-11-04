@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,15 +8,21 @@ import { toast } from "sonner";
 
 const Events = () => {
   const navigate = useNavigate();
-  const [quantities, setQuantities] = useState<{ [key: number]: number }>({
-    101: 1,
-    102: 1,
-  });
+  const [events, setEvents] = useState<any[]>([]);
+  const [quantities, setQuantities] = useState<{ [key: number]: number }>({});
 
-  const events = [
-    { id: 101, name: "Jazz Night", date: "20 Nov 2025", price: 250 },
-    { id: 102, name: "Rock & Chill", date: "22 Nov 2025", price: 300 },
-  ];
+  useEffect(() => {
+    const storedEvents = localStorage.getItem('events');
+    if (storedEvents) {
+      const parsedEvents = JSON.parse(storedEvents);
+      setEvents(parsedEvents);
+      const initialQty: { [key: number]: number } = {};
+      parsedEvents.forEach((evt: any) => {
+        initialQty[evt.id] = 1;
+      });
+      setQuantities(initialQty);
+    }
+  }, []);
 
   const updateQuantity = (id: number, delta: number) => {
     setQuantities((prev) => ({
@@ -25,16 +31,18 @@ const Events = () => {
     }));
   };
 
-  const handleConfirmOrder = (event: typeof events[0]) => {
+  const handleConfirmOrder = (event: any) => {
     const qty = quantities[event.id] || 1;
     navigate('/confirm-order', {
       state: {
         order: {
+          eventId: event.id,
           event: event.name,
           date: event.date,
           price: event.price,
           quantity: qty,
-          total: event.price * qty
+          total: event.price * qty,
+          ticketCodePrefix: event.ticketCodePrefix || 'GEF'
         }
       }
     });
@@ -68,14 +76,20 @@ const Events = () => {
                   >
                     <td className="p-4">
                       <div className="flex items-center gap-4">
-                        <div className="w-24 h-16 rounded-lg bg-gradient-primary flex items-center justify-center shadow-md">
-                          <Calendar className="h-8 w-8 text-white" />
-                        </div>
+                        {event.image ? (
+                          <div className="w-24 h-16 rounded-lg overflow-hidden shadow-md">
+                            <img src={event.image} alt={event.name} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="w-24 h-16 rounded-lg bg-gradient-primary flex items-center justify-center shadow-md">
+                            <Calendar className="h-8 w-8 text-white" />
+                          </div>
+                        )}
                         <span className="font-semibold">{event.name}</span>
                       </div>
                     </td>
-                    <td className="p-4">{event.date}</td>
-                    <td className="p-4 font-semibold">{event.price} THB</td>
+                    <td className="p-4">{new Date(event.date).toLocaleDateString()}</td>
+                    <td className="p-4 font-semibold">฿{event.price}</td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
                         <Button

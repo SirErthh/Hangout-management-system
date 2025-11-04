@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,16 +10,28 @@ const TableAssignment = () => {
   const location = useLocation();
   const reservation = location.state?.reservation;
   
-  const [tables, setTables] = useState([
-    { id: 1, number: "1", capacity: 2, status: "available" },
-    { id: 2, number: "2", capacity: 4, status: "available" },
-    { id: 3, number: "3", capacity: 4, status: "occupied" },
-    { id: 4, number: "4", capacity: 6, status: "available" },
-    { id: 5, number: "5", capacity: 2, status: "occupied" },
-    { id: 6, number: "6", capacity: 8, status: "available" },
-    { id: 7, number: "7", capacity: 4, status: "available" },
-    { id: 8, number: "8", capacity: 2, status: "available" },
-  ]);
+  const [tables, setTables] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Load tables from localStorage
+    const storedTables = localStorage.getItem('tables');
+    if (storedTables) {
+      setTables(JSON.parse(storedTables));
+    } else {
+      const defaultTables = [
+        { id: 1, number: "1", capacity: 2, status: "available" },
+        { id: 2, number: "2", capacity: 4, status: "available" },
+        { id: 3, number: "3", capacity: 4, status: "occupied" },
+        { id: 4, number: "4", capacity: 6, status: "available" },
+        { id: 5, number: "5", capacity: 2, status: "occupied" },
+        { id: 6, number: "6", capacity: 8, status: "available" },
+        { id: 7, number: "7", capacity: 4, status: "available" },
+        { id: 8, number: "8", capacity: 2, status: "available" },
+      ];
+      localStorage.setItem('tables', JSON.stringify(defaultTables));
+      setTables(defaultTables);
+    }
+  }, []);
 
   const handleAssignTable = (tableNumber: string) => {
     if (!reservation) return;
@@ -32,9 +44,11 @@ const TableAssignment = () => {
     localStorage.setItem('reservations', JSON.stringify(updated));
     
     // Update table to occupied
-    const updatedTables = tables.map(t => 
+    const storedTables = JSON.parse(localStorage.getItem('tables') || JSON.stringify(tables));
+    const updatedTables = storedTables.map((t: any) => 
       t.number === tableNumber ? { ...t, status: 'occupied' } : t
     );
+    localStorage.setItem('tables', JSON.stringify(updatedTables));
     setTables(updatedTables);
     
     toast.success(`Table ${tableNumber} assigned and marked as occupied!`);

@@ -1,43 +1,36 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { UtensilsCrossed, Clock, CheckCircle } from "lucide-react";
+import { UtensilsCrossed, Clock, CheckCircle, LayoutGrid } from "lucide-react";
 
 const StaffFnB = () => {
-  const [orders, setOrders] = useState([
-    { 
-      id: 1, 
-      table: "12", 
-      items: ["Burger x2", "Pasta x1", "Beer x3"], 
-      total: 1080,
-      status: "pending",
-      time: "5 min ago"
-    },
-    { 
-      id: 2, 
-      table: "8", 
-      items: ["Salad x1", "Salmon x1", "Juice x2"], 
-      total: 840,
-      status: "preparing",
-      time: "12 min ago"
-    },
-    { 
-      id: 3, 
-      table: "5", 
-      items: ["Mojito x2", "Espresso Martini x1"], 
-      total: 700,
-      status: "ready",
-      time: "2 min ago"
+  const [orders, setOrders] = useState<any[]>([]);
+  const [tables, setTables] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Load menu orders from localStorage
+    const storedOrders = localStorage.getItem('menuOrders');
+    if (storedOrders) {
+      setOrders(JSON.parse(storedOrders));
     }
-  ]);
+
+    // Load tables from localStorage
+    const storedTables = localStorage.getItem('tables');
+    if (storedTables) {
+      setTables(JSON.parse(storedTables));
+    }
+  }, []);
 
   const updateOrderStatus = (orderId: number, newStatus: string) => {
-    setOrders(orders.map(o => 
+    const updatedOrders = orders.map(o => 
       o.id === orderId ? { ...o, status: newStatus } : o
-    ));
+    );
+    setOrders(updatedOrders);
+    localStorage.setItem('menuOrders', JSON.stringify(updatedOrders));
     toast.success(`Order updated to ${newStatus}`);
   };
 
@@ -63,9 +56,52 @@ const StaffFnB = () => {
 
   return (
     <div className="p-6 space-y-6 animate-slide-up">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">F&B / Kitchen</h1>
-        <p className="text-muted-foreground">Manage food and beverage orders</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">F&B / Kitchen</h1>
+          <p className="text-muted-foreground">Manage food and beverage orders</p>
+        </div>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="outline" className="gap-2">
+              <LayoutGrid className="h-4 w-4" />
+              Table Status
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Table Status Overview</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-4 gap-4 mt-4">
+              {tables.map((table) => (
+                <Card 
+                  key={table.id}
+                  className={`glass-effect border-2 ${
+                    table.status === 'occupied'
+                      ? 'border-red-500/50'
+                      : 'border-green-500/50'
+                  }`}
+                >
+                  <CardHeader className="p-4 text-center">
+                    <CardTitle className="text-2xl">{table.number}</CardTitle>
+                    <CardDescription className="text-xs">
+                      {table.capacity} seats
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-2">
+                    <div className={`text-center py-1 rounded text-xs font-semibold ${
+                      table.status === 'available' 
+                        ? 'bg-green-500/20 text-green-500'
+                        : 'bg-red-500/20 text-red-500'
+                    }`}>
+                      {table.status}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid md:grid-cols-4 gap-6">

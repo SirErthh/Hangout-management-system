@@ -13,11 +13,11 @@ const MyOrders = () => {
 
   useEffect(() => {
     const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-    const allOrders = JSON.parse(localStorage.getItem('orders') || '[]');
+    const allMenuOrders = JSON.parse(localStorage.getItem('menuOrders') || '[]');
     const allReservations = JSON.parse(localStorage.getItem('reservations') || '[]');
     const allTicketOrders = JSON.parse(localStorage.getItem('ticketOrders') || '[]');
 
-    setOrders(allOrders.filter((o: any) => o.userId === currentUser.id));
+    setOrders(allMenuOrders.filter((o: any) => o.userId === currentUser.id));
     setReservations(allReservations.filter((r: any) => r.userId === currentUser.id));
     setTicketOrders(allTicketOrders.filter((t: any) => t.userId === currentUser.id));
   }, []);
@@ -166,7 +166,7 @@ const MyOrders = () => {
         </TabsContent>
 
         <TabsContent value="fnb" className="mt-6 space-y-4">
-          {orders.filter(o => o.type === 'fnb').length === 0 ? (
+          {orders.length === 0 ? (
             <Card>
               <CardContent className="p-12 text-center">
                 <UtensilsCrossed className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
@@ -174,7 +174,7 @@ const MyOrders = () => {
               </CardContent>
             </Card>
           ) : (
-            orders.filter(o => o.type === 'fnb').map(order => (
+            orders.map(order => (
               <Card key={order.id} className="glass-effect">
                 <CardHeader>
                   <div className="flex items-start justify-between">

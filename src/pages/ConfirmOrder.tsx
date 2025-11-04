@@ -20,27 +20,32 @@ const ConfirmOrder = () => {
     }
   }, [location, navigate]);
 
-  const generateTicketCodes = (quantity: number) => {
-    // Get all existing tickets to find the next number
-    const allOrders = JSON.parse(localStorage.getItem('ticketOrders') || '[]');
-    const allTickets = allOrders.flatMap((order: any) => order.tickets || []);
+  const generateTicketCodes = (quantity: number, prefix: string): string[] => {
+    const codes: string[] = [];
+    const existingOrders = JSON.parse(localStorage.getItem('ticketOrders') || '[]');
     
-    // Find the highest number used
-    let highestNum = 0;
-    allTickets.forEach((code: string) => {
-      const numMatch = code.match(/\d+$/);
-      if (numMatch) {
-        const num = parseInt(numMatch[0]);
-        if (num > highestNum) highestNum = num;
+    let lastNumber = 0;
+    existingOrders.forEach((order: any) => {
+      if (order.tickets && order.tickets.length > 0) {
+        order.tickets.forEach((ticket: string) => {
+          if (ticket.startsWith(prefix)) {
+            const match = ticket.match(/\d+$/);
+            if (match) {
+              const num = parseInt(match[0]);
+              if (num > lastNumber) {
+                lastNumber = num;
+              }
+            }
+          }
+        });
       }
     });
 
-    // Generate new codes starting from the next number
-    const codes = [];
     for (let i = 0; i < quantity; i++) {
-      const number = String(highestNum + i + 1).padStart(3, '0');
-      codes.push(`GEF${number}`);
+      const codeNumber = (lastNumber + i + 1).toString().padStart(3, '0');
+      codes.push(`${prefix}${codeNumber}`);
     }
+
     return codes;
   };
 
@@ -50,7 +55,8 @@ const ConfirmOrder = () => {
     const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
     const orders = JSON.parse(localStorage.getItem('ticketOrders') || '[]');
     
-    const tickets = generateTicketCodes(orderDetails.quantity);
+    const prefix = orderDetails.ticketCodePrefix || 'GEF';
+    const tickets = generateTicketCodes(orderDetails.quantity, prefix);
 
     const newOrder = {
       id: Date.now(),
