@@ -59,13 +59,13 @@ const Reserve = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 animate-slide-up">
+    <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
       <div>
-        <h1 className="text-3xl font-bold mb-2">Reserve a Table</h1>
-        <p className="text-muted-foreground">Choose your date, time, and party size</p>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">Reserve a Table</h1>
+        <p className="text-muted-foreground text-sm sm:text-base">Choose your date, time, and party size</p>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <Card className="glass-effect border-2">
           <CardHeader>
             <CardTitle>Select Date</CardTitle>

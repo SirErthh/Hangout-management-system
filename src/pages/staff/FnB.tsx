@@ -3,9 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { UtensilsCrossed, Clock, CheckCircle, LayoutGrid } from "lucide-react";
+import { UtensilsCrossed, Clock, CheckCircle } from "lucide-react";
 
 type OrderItem = {
   name: string;
@@ -105,58 +104,15 @@ const StaffFnB = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 animate-slide-up">
-      <div className="flex justify-between items-start">
+    <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
         <div>
-          <h1 className="text-3xl font-bold mb-2">F&B / Kitchen</h1>
-          <p className="text-muted-foreground">Manage food and beverage orders</p>
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2">F&B / Kitchen</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Manage food and beverage orders</p>
         </div>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="gap-2">
-              <LayoutGrid className="h-4 w-4" />
-              Table Status
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Table Status Overview</DialogTitle>
-            </DialogHeader>
-            <div className="grid grid-cols-4 gap-4 mt-4">
-              {tables.map((table) => (
-                <Card
-                  key={String(table.id)}
-                  className={`glass-effect border-2 ${
-                    table.status === "occupied"
-                      ? "border-red-500/50"
-                      : "border-green-500/50"
-                  }`}
-                >
-                  <CardHeader className="p-4 text-center">
-                    <CardTitle className="text-2xl">{table.number}</CardTitle>
-                    <CardDescription className="text-xs">
-                      {table.capacity} seats
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-2">
-                    <div
-                      className={`text-center py-1 rounded text-xs font-semibold ${
-                        table.status === "available"
-                          ? "bg-green-500/20 text-green-500"
-                          : "bg-red-500/20 text-red-500"
-                      }`}
-                    >
-                      {table.status}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
 
-      <div className="grid md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
         <Card className="glass-effect">
           <CardHeader className="pb-2">
             <CardDescription>Pending Orders</CardDescription>
@@ -197,31 +153,31 @@ const StaffFnB = () => {
         </Card>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {orders.map((order) => {
           const StatusIcon = getStatusIcon(order.status);
           const total = safeTotal(order);
           return (
             <Card key={order.id} className="glass-effect border-2">
               <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">Table {order.table}</CardTitle>
-                    <CardDescription className="flex items-center gap-2 mt-1">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                  <div className="flex-1">
+                    <CardTitle className="text-base sm:text-lg">Table {order.table}</CardTitle>
+                    <CardDescription className="flex items-center gap-2 mt-1 text-xs sm:text-sm">
                       <Clock className="h-3 w-3" />
                       {order.time}
                     </CardDescription>
                   </div>
                   <Badge className={getStatusColor(order.status)}>
                     <StatusIcon className="h-3 w-3 mr-1" />
-                    {order.status}
+                    <span className="text-xs sm:text-sm">{order.status}</span>
                   </Badge>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div>
-                    <p className="text-sm font-medium mb-2">Order Items:</p>
+                    <p className="text-xs sm:text-sm font-medium mb-2">Order Items:</p>
                     <ul className="space-y-1">
                       {Array.isArray(order.items) && order.items.length > 0 ? (
                         order.items.map((item, idx) => {
@@ -229,7 +185,7 @@ const StaffFnB = () => {
                             return (
                               <li
                                 key={idx}
-                                className="text-sm text-muted-foreground flex items-center gap-2"
+                                className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2"
                               >
                                 <div className="h-1.5 w-1.5 rounded-full bg-primary" />
                                 {item}
@@ -240,30 +196,30 @@ const StaffFnB = () => {
                           return (
                             <li
                               key={idx}
-                              className="text-sm text-muted-foreground flex items-center gap-2"
+                              className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2"
                             >
                               <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                              {item.name} × {item.quantity} — ฿{lineTotal}
+                              <span className="truncate">{item.name} × {item.quantity} — ฿{lineTotal}</span>
                             </li>
                           );
                         })
                       ) : (
-                        <li className="text-sm text-muted-foreground italic">
+                        <li className="text-xs sm:text-sm text-muted-foreground italic">
                           No items
                         </li>
                       )}
                     </ul>
                   </div>
 
-                  <div className="flex items-center justify-between pt-3 border-t">
-                    <span className="text-lg font-bold">฿{total.toFixed(2)}</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t">
+                    <span className="text-base sm:text-lg font-bold">฿{total.toFixed(2)}</span>
                     <Select
                       value={order.status}
                       onValueChange={(newStatus) =>
                         updateOrderStatus(order.id, newStatus as Order["status"])
                       }
                     >
-                      <SelectTrigger className="w-44">
+                      <SelectTrigger className="w-full sm:w-44">
                         <SelectValue placeholder="Update status…" />
                       </SelectTrigger>
                       <SelectContent>

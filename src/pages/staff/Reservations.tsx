@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Calendar, Users, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Calendar, Users, CheckCircle, XCircle, LayoutGrid } from "lucide-react";
 
 const StaffReservations = () => {
   const navigate = useNavigate();
@@ -47,7 +48,7 @@ const StaffReservations = () => {
   }, []);
 
   const updateReservationStatus = (id: number, newStatus: string) => {
-    const updated = reservations.map(r => 
+    const updated = reservations.map(r =>
       r.id === id ? { ...r, status: newStatus } : r
     );
     setReservations(updated);
@@ -57,7 +58,7 @@ const StaffReservations = () => {
 
   const handleAutoAssign = (reservation: any) => {
     // Find first available table that fits party size
-    const availableTable = tables.find(t => 
+    const availableTable = tables.find((t: any) =>
       t.status === 'available' && t.capacity >= reservation.partySize
     );
 
@@ -67,16 +68,16 @@ const StaffReservations = () => {
     }
 
     // Update reservation with table assignment
-    const updatedReservations = reservations.map(r => 
-      r.id === reservation.id 
-        ? { ...r, status: 'confirmed', table: availableTable.number } 
+    const updatedReservations = reservations.map(r =>
+      r.id === reservation.id
+        ? { ...r, status: 'confirmed', table: availableTable.number }
         : r
     );
     setReservations(updatedReservations);
     localStorage.setItem('reservations', JSON.stringify(updatedReservations));
 
     // Update table to occupied
-    const updatedTables = tables.map(t => 
+    const updatedTables = tables.map((t: any) =>
       t.number === availableTable.number ? { ...t, status: 'occupied' } : t
     );
     setTables(updatedTables);
@@ -100,13 +101,56 @@ const StaffReservations = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 animate-slide-up">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Reservations</h1>
-        <p className="text-muted-foreground">Manage table bookings</p>
-      </div>
+    <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2">Reservations</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Manage table bookings</p>
+        </div>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="outline" className="gap-2 w-full sm:w-auto">
+              <LayoutGrid className="h-4 w-4" />
+              Table Status
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Table Status Overview</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4">
+              {tables.map((table: any) => (
+                <Card
+                  key={String(table.id)}
+                  className={`glass-effect border-2 ${
+                    table.status === "occupied" ? "border-red-500/50" : "border-green-500/50"
+                  }`}
+                >
+                  <CardHeader className="p-4 text-center">
+                    <CardTitle className="text-2xl">{table.number}</CardTitle>
+                    <CardDescription className="text-xs">
+                      {table.capacity} seats
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-2">
+                    <div
+                      className={`text-center py-1 rounded text-xs font-semibold ${
+                        table.status === "available"
+                          ? "bg-green-500/20 text-green-500"
+                          : "bg-red-500/20 text-red-500"
+                      }`}
+                    >
+                      {table.status}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div> {/* ✅ CLOSE the header container */}
 
-      <div className="grid md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
         <Card className="glass-effect">
           <CardHeader className="pb-2">
             <CardDescription>Pending</CardDescription>
@@ -148,42 +192,42 @@ const StaffReservations = () => {
       </div>
 
       <div className="space-y-4">
-        {reservations.map(reservation => (
+        {reservations.map((reservation: any) => (
           <Card key={reservation.id} className="glass-effect border-2">
             <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg">Reservation #{reservation.id}</CardTitle>
-                  <CardDescription>{reservation.customer}</CardDescription>
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                <div className="flex-1">
+                  <CardTitle className="text-base sm:text-lg">Reservation #{reservation.id}</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">{reservation.customer}</CardDescription>
                 </div>
                 <Badge className={getStatusColor(reservation.status)}>
-                  {reservation.status}
+                  <span className="text-xs sm:text-sm">{reservation.status}</span>
                 </Badge>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-4">
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex items-center gap-2 text-xs sm:text-sm">
+                    <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <span>{new Date(reservation.date).toLocaleDateString()}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Users className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex items-center gap-2 text-xs sm:text-sm">
+                    <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <span>{reservation.partySize} guests</span>
                   </div>
                   {reservation.table && (
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2 text-xs sm:text-sm">
                       <span className="font-semibold">Table: {reservation.table}</span>
                     </div>
                   )}
                 </div>
 
                 {reservation.status === 'pending' && (
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Button
                       onClick={() => handleAutoAssign(reservation)}
-                      className="bg-green-500 hover:bg-green-600"
+                      className="bg-green-500 hover:bg-green-600 w-full sm:w-auto"
                       size="sm"
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
@@ -193,6 +237,7 @@ const StaffReservations = () => {
                       onClick={() => handleManualAssign(reservation)}
                       variant="outline"
                       size="sm"
+                      className="w-full sm:w-auto"
                     >
                       Manual Assign
                     </Button>
@@ -200,6 +245,7 @@ const StaffReservations = () => {
                       onClick={() => updateReservationStatus(reservation.id, 'cancelled')}
                       variant="destructive"
                       size="sm"
+                      className="w-full sm:w-auto"
                     >
                       <XCircle className="h-4 w-4 mr-2" />
                       Cancel

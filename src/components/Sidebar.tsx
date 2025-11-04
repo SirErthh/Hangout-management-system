@@ -44,8 +44,8 @@ const Sidebar = ({ role }: SidebarProps) => {
   if (role === "admin") links = adminLinks;
 
   return (
-    <aside className="sticky top-16 h-[calc(100vh-4rem)] w-64 border-r bg-sidebar overflow-auto">
-      <nav className="p-4 space-y-2">
+    <aside className="sticky top-16 h-[calc(100vh-4rem)] w-full sm:w-64 border-r bg-sidebar overflow-auto">
+      <nav className="p-3 sm:p-4 space-y-2">
         {links.map((link) => {
           const Icon = link.icon;
           return (

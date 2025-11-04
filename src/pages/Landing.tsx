@@ -49,26 +49,27 @@ const Landing = () => {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-primary py-24 px-6">
+      <section className="relative overflow-hidden bg-gradient-primary py-12 sm:py-24 px-4 sm:px-6">
         <div className="absolute inset-0 bg-grid-white/10 [mask-image:linear-gradient(0deg,transparent,black)]" />
         <div className="relative max-w-6xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full text-white/90 text-sm mb-6 animate-slide-up">
-            <Sparkles className="h-4 w-4" />
-            Welcome to the ultimate hangout experience
+          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 sm:px-4 py-2 rounded-full text-white/90 text-xs sm:text-sm mb-4 sm:mb-6 animate-slide-up">
+            <Sparkles className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Welcome to the ultimate hangout experience</span>
+            <span className="sm:hidden">Welcome</span>
           </div>
-          <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 animate-slide-up">
+          <h1 className="text-3xl sm:text-5xl md:text-7xl font-bold text-white mb-4 sm:mb-6 animate-slide-up">
             Your Next Great Night
             <br />
             Starts Here
           </h1>
-          <p className="text-xl text-white/80 max-w-2xl mx-auto mb-8 animate-slide-up">
+          <p className="text-base sm:text-xl text-white/80 max-w-2xl mx-auto mb-6 sm:mb-8 px-4 sm:px-0 animate-slide-up">
             Experience live events, reserve tables, and enjoy amazing food & drinks all in one place
           </p>
-          <div className="flex gap-4 justify-center animate-slide-up">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center animate-slide-up px-4 sm:px-0">
             <Button 
               size="lg" 
               onClick={() => navigate('/events')}
-              className="bg-white text-primary hover:bg-white/90 shadow-lg"
+              className="bg-white text-primary hover:bg-white/90 shadow-lg w-full sm:w-auto"
             >
               Explore Events
             </Button>
@@ -76,7 +77,7 @@ const Landing = () => {
               size="lg" 
               variant="outline"
               onClick={() => navigate('/login')}
-              className="bg-white text-primary hover:bg-white/90 shadow-lg"
+              className="bg-white text-primary hover:bg-white/90 shadow-lg w-full sm:w-auto"
             >
               Get Started
             </Button>
@@ -85,10 +86,10 @@ const Landing = () => {
       </section>
 
       {/* Features Section */}
-      <section className="py-20 px-6">
+      <section className="py-12 sm:py-20 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12">What You Can Do</h2>
-          <div className="grid md:grid-cols-3 gap-6">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12">What You Can Do</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
             {features.map((feature, idx) => {
               const Icon = feature.icon;
               return (
@@ -117,19 +118,42 @@ const Landing = () => {
       </section>
 
       {/* Upcoming Events */}
-      <section className="py-20 px-6 bg-muted">
+      <section className="py-12 sm:py-20 px-4 sm:px-6 bg-muted">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12">Upcoming Events</h2>
-          <Card>
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12">Upcoming Events</h2>
+          {/* Mobile: Card layout */}
+          <div className="block sm:hidden space-y-4">
+            {upcomingEvents.map((event, idx) => (
+              <Card key={idx}>
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="w-16 h-12 rounded-lg bg-gradient-primary flex items-center justify-center flex-shrink-0">
+                      <Calendar className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-base">{event.name}</h3>
+                      <p className="text-xs text-muted-foreground">{event.date}</p>
+                      <p className="text-sm font-semibold mt-1">{event.price} THB</p>
+                    </div>
+                  </div>
+                  <Button onClick={() => navigate('/events')} size="sm" className="w-full">
+                    Buy Ticket
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          {/* Desktop: Table layout */}
+          <Card className="hidden sm:block">
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-muted border-b">
                     <tr>
-                      <th className="text-left p-4 font-semibold">Event</th>
-                      <th className="text-left p-4 font-semibold">Date</th>
-                      <th className="text-left p-4 font-semibold">Price</th>
-                      <th className="text-left p-4 font-semibold">Action</th>
+                      <th className="text-left p-4 font-semibold text-sm">Event</th>
+                      <th className="text-left p-4 font-semibold text-sm">Date</th>
+                      <th className="text-left p-4 font-semibold text-sm">Price</th>
+                      <th className="text-left p-4 font-semibold text-sm">Action</th>
                     </tr>
                   </thead>
                   <tbody>

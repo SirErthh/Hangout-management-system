@@ -33,25 +33,25 @@ const MyOrders = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 animate-slide-up">
+    <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
       <div>
-        <h1 className="text-3xl font-bold mb-2">My Orders</h1>
-        <p className="text-muted-foreground">View all your bookings and purchases</p>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">My Orders</h1>
+        <p className="text-muted-foreground text-sm sm:text-base">View all your bookings and purchases</p>
       </div>
 
       <Tabs defaultValue="tickets" className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-3">
-          <TabsTrigger value="tickets">
-            <Ticket className="h-4 w-4 mr-2" />
-            Tickets
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="tickets" className="text-xs sm:text-sm">
+            <Ticket className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Tickets</span>
           </TabsTrigger>
-          <TabsTrigger value="reservations">
-            <Calendar className="h-4 w-4 mr-2" />
-            Reservations
+          <TabsTrigger value="reservations" className="text-xs sm:text-sm">
+            <Calendar className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Reservations</span>
           </TabsTrigger>
-          <TabsTrigger value="fnb">
-            <UtensilsCrossed className="h-4 w-4 mr-2" />
-            F&B
+          <TabsTrigger value="fnb" className="text-xs sm:text-sm">
+            <UtensilsCrossed className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+            <span className="hidden sm:inline">F&B</span>
           </TabsTrigger>
         </TabsList>
 
@@ -67,15 +67,15 @@ const MyOrders = () => {
             ticketOrders.map(order => (
               <Card key={order.id} className="glass-effect">
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle>{order.event}</CardTitle>
-                      <CardDescription>
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div className="flex-1">
+                      <CardTitle className="text-base sm:text-lg">{order.event}</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
                         Order #{order.id} • {new Date(order.createdAt).toLocaleDateString()}
                       </CardDescription>
                     </div>
                     <Badge className={getStatusColor(order.status)}>
-                      {order.status}
+                      <span className="text-xs sm:text-sm">{order.status}</span>
                     </Badge>
                   </div>
                 </CardHeader>
@@ -128,15 +128,15 @@ const MyOrders = () => {
             reservations.map(reservation => (
               <Card key={reservation.id} className="glass-effect">
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle>Table Reservation</CardTitle>
-                      <CardDescription>
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div className="flex-1">
+                      <CardTitle className="text-base sm:text-lg">Table Reservation</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
                         Booking #{reservation.id}
                       </CardDescription>
                     </div>
                     <Badge className={getStatusColor(reservation.status)}>
-                      {reservation.status}
+                      <span className="text-xs sm:text-sm">{reservation.status}</span>
                     </Badge>
                   </div>
                 </CardHeader>
@@ -177,15 +177,15 @@ const MyOrders = () => {
             orders.map(order => (
               <Card key={order.id} className="glass-effect">
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle>Food & Beverage Order</CardTitle>
-                      <CardDescription>
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div className="flex-1">
+                      <CardTitle className="text-base sm:text-lg">Food & Beverage Order</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
                         Order #{order.id} • {new Date(order.createdAt).toLocaleDateString()}
                       </CardDescription>
                     </div>
                     <Badge className={getStatusColor(order.status)}>
-                      {order.status}
+                      <span className="text-xs sm:text-sm">{order.status}</span>
                     </Badge>
                   </div>
                 </CardHeader>

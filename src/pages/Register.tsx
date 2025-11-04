@@ -41,14 +41,14 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-subtle">
+    <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 bg-gradient-subtle">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-12 h-12 rounded-xl bg-gradient-primary flex items-center justify-center mb-2">
-            <UserPlus className="h-6 w-6 text-white" />
+          <div className="mx-auto w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-primary flex items-center justify-center mb-2">
+            <UserPlus className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
           </div>
-          <CardTitle className="text-2xl">Create Account</CardTitle>
-          <CardDescription>Join us and start your hangout experience</CardDescription>
+          <CardTitle className="text-xl sm:text-2xl">Create Account</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">Join us and start your hangout experience</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
