@@ -32,9 +32,11 @@ const TableAssignment = () => {
     localStorage.setItem('reservations', JSON.stringify(updated));
     
     // Update table to occupied
-    const updatedTables = tables.map(t => 
+    const storedTables = JSON.parse(localStorage.getItem('tables') || JSON.stringify(tables));
+    const updatedTables = storedTables.map((t: any) => 
       t.number === tableNumber ? { ...t, status: 'occupied' } : t
     );
+    localStorage.setItem('tables', JSON.stringify(updatedTables));
     setTables(updatedTables);
     
     toast.success(`Table ${tableNumber} assigned and marked as occupied!`);

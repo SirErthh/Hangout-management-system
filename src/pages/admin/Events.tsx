@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,10 +9,7 @@ import { toast } from "sonner";
 import { Plus, Calendar, Edit, Trash2 } from "lucide-react";
 
 const AdminEvents = () => {
-  const [events, setEvents] = useState([
-    { id: 1, name: "Jazz Night", date: "2025-11-01", price: 500, description: "Live jazz performance", image: "" },
-    { id: 2, name: "EDM Party", date: "2025-11-15", price: 800, description: "Electronic dance music festival", image: "" }
-  ]);
+  const [events, setEvents] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [formData, setFormData] = useState({
@@ -20,18 +17,34 @@ const AdminEvents = () => {
     date: "",
     price: "",
     description: "",
-    image: ""
+    image: "",
+    ticketCodePrefix: ""
   });
+
+  useEffect(() => {
+    const storedEvents = localStorage.getItem('events');
+    if (storedEvents) {
+      setEvents(JSON.parse(storedEvents));
+    } else {
+      const defaultEvents = [
+        { id: 1, name: "Jazz Night", date: "2025-11-01", price: 500, description: "Live jazz performance", image: "", ticketCodePrefix: "GEF" },
+        { id: 2, name: "EDM Party", date: "2025-11-15", price: 800, description: "Electronic dance music festival", image: "", ticketCodePrefix: "TMD" }
+      ];
+      setEvents(defaultEvents);
+      localStorage.setItem('events', JSON.stringify(defaultEvents));
+    }
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    let updatedEvents;
     if (editingEvent) {
-      setEvents(events.map(evt => 
+      updatedEvents = events.map(evt => 
         evt.id === editingEvent.id 
           ? { ...evt, ...formData, price: parseInt(formData.price) }
           : evt
-      ));
+      );
       toast.success("Event updated successfully!");
     } else {
       const newEvent = {
@@ -40,15 +53,19 @@ const AdminEvents = () => {
         date: formData.date,
         price: parseInt(formData.price),
         description: formData.description,
-        image: formData.image
+        image: formData.image,
+        ticketCodePrefix: formData.ticketCodePrefix.toUpperCase()
       };
-      setEvents([...events, newEvent]);
+      updatedEvents = [...events, newEvent];
       toast.success("Event created successfully!");
     }
 
+    setEvents(updatedEvents);
+    localStorage.setItem('events', JSON.stringify(updatedEvents));
+
     setIsOpen(false);
     setEditingEvent(null);
-    setFormData({ name: "", date: "", price: "", description: "", image: "" });
+    setFormData({ name: "", date: "", price: "", description: "", image: "", ticketCodePrefix: "" });
   };
 
   const handleEdit = (event: any) => {
@@ -58,19 +75,22 @@ const AdminEvents = () => {
       date: event.date,
       price: event.price.toString(),
       description: event.description,
-      image: event.image || ""
+      image: event.image || "",
+      ticketCodePrefix: event.ticketCodePrefix || ""
     });
     setIsOpen(true);
   };
 
   const handleNewEvent = () => {
     setEditingEvent(null);
-    setFormData({ name: "", date: "", price: "", description: "", image: "" });
+    setFormData({ name: "", date: "", price: "", description: "", image: "", ticketCodePrefix: "" });
     setIsOpen(true);
   };
 
   const deleteEvent = (id: number) => {
-    setEvents(events.filter(e => e.id !== id));
+    const updatedEvents = events.filter(e => e.id !== id);
+    setEvents(updatedEvents);
+    localStorage.setItem('events', JSON.stringify(updatedEvents));
     toast.success("Event deleted");
   };
 
@@ -146,6 +166,20 @@ const AdminEvents = () => {
                 />
                 <p className="text-xs text-muted-foreground">
                   Enter an image URL for the event
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ticketCodePrefix">Ticket Code Prefix</Label>
+                <Input
+                  id="ticketCodePrefix"
+                  value={formData.ticketCodePrefix}
+                  onChange={(e) => setFormData({ ...formData, ticketCodePrefix: e.target.value.toUpperCase() })}
+                  placeholder="GEF, TMD, etc."
+                  maxLength={3}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  3 letter code for tickets (e.g., GEF001, TMD001)
                 </p>
               </div>
               <Button type="submit" className="w-full">

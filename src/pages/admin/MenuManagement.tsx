@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,12 +9,7 @@ import { toast } from "sonner";
 import { Plus, Edit, Trash2, UtensilsCrossed } from "lucide-react";
 
 const MenuManagement = () => {
-  const [menuItems, setMenuItems] = useState([
-    { id: 1, name: "Signature Burger", category: "food", price: 280, image: "🍔" },
-    { id: 2, name: "Truffle Pasta", category: "food", price: 320, image: "🍝" },
-    { id: 3, name: "Mojito", category: "drinks", price: 220, image: "🍹" },
-    { id: 4, name: "Craft Beer", category: "drinks", price: 180, image: "🍺" }
-  ]);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [formData, setFormData] = useState({
@@ -25,15 +20,32 @@ const MenuManagement = () => {
     imageUrl: ""
   });
 
+  useEffect(() => {
+    const storedMenu = localStorage.getItem('menuItems');
+    if (storedMenu) {
+      setMenuItems(JSON.parse(storedMenu));
+    } else {
+      const defaultMenu = [
+        { id: 1, name: "Signature Burger", category: "food", price: 280, image: "🍔" },
+        { id: 2, name: "Truffle Pasta", category: "food", price: 320, image: "🍝" },
+        { id: 3, name: "Mojito", category: "drinks", price: 220, image: "🍹" },
+        { id: 4, name: "Craft Beer", category: "drinks", price: 180, image: "🍺" }
+      ];
+      setMenuItems(defaultMenu);
+      localStorage.setItem('menuItems', JSON.stringify(defaultMenu));
+    }
+  }, []);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    let updatedMenu;
     if (editingItem) {
-      setMenuItems(menuItems.map(item => 
+      updatedMenu = menuItems.map(item => 
         item.id === editingItem.id 
           ? { ...item, name: formData.name, category: formData.category, price: parseInt(formData.price), image: formData.imageUrl || formData.image }
           : item
-      ));
+      );
       toast.success("Menu item updated!");
     } else {
       const newItem = {
@@ -43,9 +55,12 @@ const MenuManagement = () => {
         price: parseInt(formData.price),
         image: formData.imageUrl || formData.image
       };
-      setMenuItems([...menuItems, newItem]);
+      updatedMenu = [...menuItems, newItem];
       toast.success("Menu item created!");
     }
+
+    setMenuItems(updatedMenu);
+    localStorage.setItem('menuItems', JSON.stringify(updatedMenu));
 
     setIsOpen(false);
     setEditingItem(null);
@@ -66,7 +81,9 @@ const MenuManagement = () => {
   };
 
   const handleDelete = (id: number) => {
-    setMenuItems(menuItems.filter(item => item.id !== id));
+    const updatedMenu = menuItems.filter(item => item.id !== id);
+    setMenuItems(updatedMenu);
+    localStorage.setItem('menuItems', JSON.stringify(updatedMenu));
     toast.success("Menu item deleted");
   };
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,73 +10,27 @@ import { Plus, Minus, ShoppingCart } from "lucide-react";
 const Menu = () => {
   const navigate = useNavigate();
   const [cart, setCart] = useState<Record<number, number>>({});
+  const [menuItems, setMenuItems] = useState<any[]>([]);
 
-  const menuItems = [
-    {
-      id: 1,
-      category: "food",
-      name: "Signature Burger",
-      description: "Angus beef, special sauce, lettuce, cheese",
-      price: 280,
-      image: "🍔"
-    },
-    {
-      id: 2,
-      category: "food",
-      name: "Truffle Pasta",
-      description: "Creamy truffle sauce with mushrooms",
-      price: 320,
-      image: "🍝"
-    },
-    {
-      id: 3,
-      category: "food",
-      name: "Caesar Salad",
-      description: "Fresh romaine, parmesan, croutons",
-      price: 180,
-      image: "🥗"
-    },
-    {
-      id: 4,
-      category: "food",
-      name: "Grilled Salmon",
-      description: "With asparagus and lemon butter",
-      price: 420,
-      image: "🐟"
-    },
-    {
-      id: 5,
-      category: "drinks",
-      name: "Mojito",
-      description: "Rum, mint, lime, soda",
-      price: 220,
-      image: "🍹"
-    },
-    {
-      id: 6,
-      category: "drinks",
-      name: "Craft Beer",
-      description: "Local IPA on tap",
-      price: 180,
-      image: "🍺"
-    },
-    {
-      id: 7,
-      category: "drinks",
-      name: "Espresso Martini",
-      description: "Vodka, coffee liqueur, espresso",
-      price: 260,
-      image: "☕"
-    },
-    {
-      id: 8,
-      category: "drinks",
-      name: "Fresh Juice",
-      description: "Orange, apple, or pineapple",
-      price: 120,
-      image: "🥤"
+  useEffect(() => {
+    const storedMenu = localStorage.getItem('menuItems');
+    if (storedMenu) {
+      setMenuItems(JSON.parse(storedMenu));
+    } else {
+      const defaultMenu = [
+        { id: 1, category: "food", name: "Signature Burger", description: "Angus beef, special sauce, lettuce, cheese", price: 280, image: "🍔" },
+        { id: 2, category: "food", name: "Truffle Pasta", description: "Creamy truffle sauce with mushrooms", price: 320, image: "🍝" },
+        { id: 3, category: "food", name: "Caesar Salad", description: "Fresh romaine, parmesan, croutons", price: 180, image: "🥗" },
+        { id: 4, category: "food", name: "Grilled Salmon", description: "With asparagus and lemon butter", price: 420, image: "🐟" },
+        { id: 5, category: "drinks", name: "Mojito", description: "Rum, mint, lime, soda", price: 220, image: "🍹" },
+        { id: 6, category: "drinks", name: "Craft Beer", description: "Local IPA on tap", price: 180, image: "🍺" },
+        { id: 7, category: "drinks", name: "Espresso Martini", description: "Vodka, coffee liqueur, espresso", price: 260, image: "☕" },
+        { id: 8, category: "drinks", name: "Fresh Juice", description: "Orange, apple, or pineapple", price: 120, image: "🥤" }
+      ];
+      setMenuItems(defaultMenu);
+      localStorage.setItem('menuItems', JSON.stringify(defaultMenu));
     }
-  ];
+  }, []);
 
   const updateCart = (itemId: number, delta: number) => {
     setCart(prev => {
@@ -127,7 +81,13 @@ const Menu = () => {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <div className="text-4xl mb-2">{item.image}</div>
+                {item.image?.startsWith('http') ? (
+                  <div className="w-full h-32 mb-2 overflow-hidden rounded-lg">
+                    <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="text-4xl mb-2">{item.image}</div>
+                )}
                 <CardTitle className="text-xl">{item.name}</CardTitle>
                 <CardDescription>{item.description}</CardDescription>
               </div>
