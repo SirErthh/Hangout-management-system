@@ -50,21 +50,21 @@ const ConfirmMenu = () => {
   const total = getTotalPrice();
 
   return (
-    <div className="p-6 space-y-6 animate-slide-up max-w-2xl mx-auto">
+    <div className="p-4 sm:p-6 space-y-6 animate-slide-up max-w-2xl mx-auto">
       <div>
-        <h1 className="text-3xl font-bold mb-2">Confirm Your Order</h1>
-        <p className="text-muted-foreground">Review your food & beverage order</p>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">Confirm Your Order</h1>
+        <p className="text-muted-foreground text-sm sm:text-base">Review your food & beverage order</p>
       </div>
 
       <Card className="glass-effect border-2">
         <CardHeader>
           <div className="flex items-start justify-between">
             <div>
-              <CardTitle className="text-2xl flex items-center gap-2">
-                <UtensilsCrossed className="h-6 w-6" />
+              <CardTitle className="text-xl sm:text-2xl flex items-center gap-2">
+                <UtensilsCrossed className="h-5 w-5 sm:h-6 sm:w-6" />
                 Order Summary
               </CardTitle>
-              <CardDescription className="mt-2">
+              <CardDescription className="mt-2 text-xs sm:text-sm">
                 {cartItems.length} item(s) in your order
               </CardDescription>
             </div>
@@ -85,9 +85,9 @@ const ConfirmMenu = () => {
 
           <Separator />
 
-          <div className="flex items-center justify-between text-lg">
+          <div className="flex items-center justify-between text-base sm:text-lg">
             <span className="font-semibold">Total Amount</span>
-            <span className="font-bold text-2xl">{total} THB</span>
+            <span className="font-bold text-xl sm:text-2xl">{total} THB</span>
           </div>
 
           <div className="flex gap-3">

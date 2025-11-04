@@ -84,18 +84,18 @@ const ConfirmOrder = () => {
   if (!orderDetails) return null;
 
   return (
-    <div className="p-6 space-y-6 animate-slide-up max-w-2xl mx-auto">
+    <div className="p-4 sm:p-6 space-y-6 animate-slide-up max-w-2xl mx-auto">
       <div>
-        <h1 className="text-3xl font-bold mb-2">Confirm Your Order</h1>
-        <p className="text-muted-foreground">Review your event ticket order</p>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">Confirm Your Order</h1>
+        <p className="text-muted-foreground text-sm sm:text-base">Review your event ticket order</p>
       </div>
 
       <Card className="glass-effect border-2">
         <CardHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <CardTitle className="text-2xl">{orderDetails.event}</CardTitle>
-              <CardDescription className="flex items-center gap-2 mt-2">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+            <div className="flex-1">
+              <CardTitle className="text-xl sm:text-2xl">{orderDetails.event}</CardTitle>
+              <CardDescription className="flex items-center gap-2 mt-2 text-xs sm:text-sm">
                 <Calendar className="h-4 w-4" />
                 {orderDetails.date}
               </CardDescription>
@@ -119,9 +119,9 @@ const ConfirmOrder = () => {
 
             <Separator />
 
-            <div className="flex items-center justify-between text-lg">
+            <div className="flex items-center justify-between text-base sm:text-lg">
               <span className="font-semibold">Total Amount</span>
-              <span className="font-bold text-2xl">{orderDetails.total} THB</span>
+              <span className="font-bold text-xl sm:text-2xl">{orderDetails.total} THB</span>
             </div>
 
             <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">

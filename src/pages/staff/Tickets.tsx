@@ -65,13 +65,13 @@ const StaffTickets = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 animate-slide-up">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Ticket Orders</h1>
-          <p className="text-muted-foreground">Manage and process ticket purchases</p>
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2">Ticket Orders</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Manage and process ticket purchases</p>
         </div>
-        <div className="relative w-64">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search ticket code..."
@@ -82,7 +82,7 @@ const StaffTickets = () => {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6 mb-6">
         <Card className="glass-effect">
           <CardHeader className="pb-2">
             <CardDescription>Pending Orders</CardDescription>
@@ -125,26 +125,26 @@ const StaffTickets = () => {
           .map(order => (
           <Card key={order.id} className="glass-effect border-2">
             <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg">Order #{order.id}</CardTitle>
-                  <CardDescription>
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                <div className="flex-1">
+                  <CardTitle className="text-base sm:text-lg">Order #{order.id}</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm break-words">
                     {order.customer} • {order.event}
                   </CardDescription>
                 </div>
                 <Badge className={getStatusColor(order.status)}>
-                  {order.status}
+                  <span className="text-xs sm:text-sm">{order.status}</span>
                 </Badge>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
                     <Ticket className="h-4 w-4" />
                     <span>{order.quantity} tickets</span>
                   </div>
-                  <p className="text-2xl font-bold">฿{order.total.toLocaleString()}</p>
+                  <p className="text-xl sm:text-2xl font-bold">฿{order.total.toLocaleString()}</p>
                 </div>
 
                 <Dialog>
@@ -197,10 +197,11 @@ const StaffTickets = () => {
                   <Button
                     onClick={() => updateOrderStatus(order.id, 'cancelled')}
                     variant="destructive"
-                    size="icon"
-                    className="h-8 w-8"
+                    size="sm"
+                    className="w-full sm:w-auto"
                   >
-                    <XCircle className="h-4 w-4" />
+                    <XCircle className="h-4 w-4 mr-2 sm:mr-0" />
+                    <span className="sm:hidden">Cancel Order</span>
                   </Button>
                 )}
               </div>
