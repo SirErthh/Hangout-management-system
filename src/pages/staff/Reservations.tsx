@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,25 +8,81 @@ import { Calendar, Users, Clock, CheckCircle, XCircle } from "lucide-react";
 
 const StaffReservations = () => {
   const navigate = useNavigate();
-  const [reservations, setReservations] = useState([
-    { id: 1, customer: "Alice Johnson", date: "2025-11-01", partySize: 4, status: "pending" },
-    { id: 2, customer: "Mike Brown", date: "2025-11-01", partySize: 2, status: "pending" },
-    { id: 3, customer: "Sarah Davis", date: "2025-11-02", partySize: 6, status: "confirmed", table: "4" }
-  ]);
+  const [reservations, setReservations] = useState<any[]>([]);
+  const [tables, setTables] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Load reservations from localStorage
+    const storedReservations = localStorage.getItem('reservations');
+    if (storedReservations) {
+      setReservations(JSON.parse(storedReservations));
+    } else {
+      const defaultReservations = [
+        { id: 1, customer: "Alice Johnson", date: "2025-11-01", partySize: 4, status: "pending" },
+        { id: 2, customer: "Mike Brown", date: "2025-11-01", partySize: 2, status: "pending" },
+        { id: 3, customer: "Sarah Davis", date: "2025-11-02", partySize: 6, status: "confirmed", table: "4" }
+      ];
+      localStorage.setItem('reservations', JSON.stringify(defaultReservations));
+      setReservations(defaultReservations);
+    }
+
+    // Load tables from localStorage
+    const storedTables = localStorage.getItem('tables');
+    if (storedTables) {
+      setTables(JSON.parse(storedTables));
+    } else {
+      const defaultTables = [
+        { id: 1, number: "1", capacity: 2, status: "available" },
+        { id: 2, number: "2", capacity: 4, status: "available" },
+        { id: 3, number: "3", capacity: 4, status: "occupied" },
+        { id: 4, number: "4", capacity: 6, status: "available" },
+        { id: 5, number: "5", capacity: 2, status: "occupied" },
+        { id: 6, number: "6", capacity: 8, status: "available" },
+        { id: 7, number: "7", capacity: 4, status: "available" },
+        { id: 8, number: "8", capacity: 2, status: "available" },
+      ];
+      localStorage.setItem('tables', JSON.stringify(defaultTables));
+      setTables(defaultTables);
+    }
+  }, []);
 
   const updateReservationStatus = (id: number, newStatus: string) => {
-    setReservations(reservations.map(r => 
+    const updated = reservations.map(r => 
       r.id === id ? { ...r, status: newStatus } : r
-    ));
+    );
+    setReservations(updated);
+    localStorage.setItem('reservations', JSON.stringify(updated));
     toast.success(`Reservation ${newStatus}`);
   };
 
   const handleAutoAssign = (reservation: any) => {
-    // Auto assign logic - just mark as confirmed
-    setReservations(reservations.map(r => 
-      r.id === reservation.id ? { ...r, status: 'confirmed' } : r
-    ));
-    toast.success(`Table auto-assigned for ${reservation.customer}`);
+    // Find first available table that fits party size
+    const availableTable = tables.find(t => 
+      t.status === 'available' && t.capacity >= reservation.partySize
+    );
+
+    if (!availableTable) {
+      toast.error('No available tables for this party size');
+      return;
+    }
+
+    // Update reservation with table assignment
+    const updatedReservations = reservations.map(r => 
+      r.id === reservation.id 
+        ? { ...r, status: 'confirmed', table: availableTable.number } 
+        : r
+    );
+    setReservations(updatedReservations);
+    localStorage.setItem('reservations', JSON.stringify(updatedReservations));
+
+    // Update table to occupied
+    const updatedTables = tables.map(t => 
+      t.number === availableTable.number ? { ...t, status: 'occupied' } : t
+    );
+    setTables(updatedTables);
+    localStorage.setItem('tables', JSON.stringify(updatedTables));
+
+    toast.success(`Table ${availableTable.number} auto-assigned for ${reservation.customer}`);
   };
 
   const handleManualAssign = (reservation: any) => {
