@@ -14,10 +14,11 @@ const Register = () => {
     lname: "",
     email: "",
     password: "",
+    phone: "",
   });
 
   const handleRegister = () => {
-    if (!formData.fname || !formData.email || !formData.password) {
+    if (!formData.fname || !formData.email || !formData.password || !formData.phone) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -37,6 +38,14 @@ const Register = () => {
       description: "You can now login with your credentials"
     });
     
+    setFormData({
+      fname: "",
+      lname: "",
+      email: "",
+      password: "",
+      phone: "",
+    });
+
     setTimeout(() => navigate('/login'), 1500);
   };
 
@@ -77,6 +86,25 @@ const Register = () => {
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone *</Label>
+            <Input
+              id="phone"
+              type="tel"
+              inputMode="tel"
+              placeholder="08XXXXXXXX"
+              value={formData.phone}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  phone: e.target.value.replace(/[^\d+]/g, ""),
+                })
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Phone number helps us share reservation updates quickly.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password *</Label>

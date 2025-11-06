@@ -17,6 +17,7 @@ import Reserve from "./pages/Reserve";
 import Menu from "./pages/Menu";
 import MyOrders from "./pages/MyOrders";
 import ConfirmMenu from "./pages/ConfirmMenu";
+import ConfirmReservation from "./pages/ConfirmReservation";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminUsers from "./pages/admin/Users";
 import AdminEvents from "./pages/admin/Events";
@@ -110,6 +111,10 @@ const App = () => {
                   <Route 
                     path="/confirm-menu" 
                     element={currentUser?.role === 'customer' ? <ConfirmMenu /> : <Navigate to="/login" />} 
+                  />
+                  <Route 
+                    path="/confirm-reservation" 
+                    element={currentUser?.role === 'customer' ? <ConfirmReservation /> : <Navigate to="/login" />} 
                   />
                   <Route 
                     path="/my-orders" 

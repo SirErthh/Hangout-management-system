@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Ticket, Calendar, Clock } from "lucide-react";
 
@@ -11,10 +13,14 @@ const ConfirmOrder = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [orderDetails, setOrderDetails] = useState<any>(null);
+  const [remark, setRemark] = useState<string>("");
 
   useEffect(() => {
     if (location.state?.order) {
       setOrderDetails(location.state.order);
+      if (typeof location.state.order.remark === "string") {
+        setRemark(location.state.order.remark);
+      }
     } else {
       navigate('/events');
     }
@@ -58,6 +64,8 @@ const ConfirmOrder = () => {
     const prefix = orderDetails.ticketCodePrefix || 'GEF';
     const tickets = generateTicketCodes(orderDetails.quantity, prefix);
 
+    const trimmedRemark = remark.trim();
+
     const newOrder = {
       id: Date.now(),
       userId: currentUser.id,
@@ -68,7 +76,8 @@ const ConfirmOrder = () => {
       tickets: tickets,
       status: 'pending',
       createdAt: new Date().toISOString(),
-      date: orderDetails.date
+      date: orderDetails.date,
+      remark: trimmedRemark.length > 0 ? trimmedRemark : undefined,
     };
 
     orders.push(newOrder);
@@ -122,6 +131,21 @@ const ConfirmOrder = () => {
             <div className="flex items-center justify-between text-base sm:text-lg">
               <span className="font-semibold">Total Amount</span>
               <span className="font-bold text-xl sm:text-2xl">{orderDetails.total} THB</span>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="order-remark" className="text-sm font-medium">
+                Remark (optional)
+              </Label>
+              <Textarea
+                id="order-remark"
+                placeholder="Add any special notes for staff (e.g., wheelchair access, preferred seating)."
+                value={remark}
+                onChange={(e) => setRemark(e.target.value)}
+                maxLength={300}
+                className="min-h-[90px]"
+              />
+              <p className="text-xs text-muted-foreground text-right">{remark.length}/300</p>
             </div>
 
             <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">

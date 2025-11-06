@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,10 +11,12 @@ import { toast } from "sonner";
 import { Users, AlertCircle, Calendar as CalendarIcon } from "lucide-react";
 
 const Reserve = () => {
+  const navigate = useNavigate();
   const [date, setDate] = useState<Date | undefined>(new Date());
-  const [partySize, setPartySize] = useState<number>(2);
+  const [partySize, setPartySize] = useState<number | "">(2);
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [eventDates, setEventDates] = useState<string[]>([]);
+  const [showInvalidPartyDialog, setShowInvalidPartyDialog] = useState(false);
 
   useEffect(() => {
     // Load event dates from localStorage
@@ -38,24 +41,20 @@ const Reserve = () => {
       setShowEventDialog(true);
       return;
     }
+
+    if (typeof partySize !== "number" || partySize < 1) {
+      setShowInvalidPartyDialog(true);
+      return;
+    }
     
-    const reservations = JSON.parse(localStorage.getItem('reservations') || '[]');
-    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-    
-    const newReservation = {
-      id: Date.now(),
-      userId: currentUser.id,
-      customer: `${currentUser.fname} ${currentUser.lname}`,
-      date: date.toISOString(),
-      partySize,
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    };
-    
-    reservations.push(newReservation);
-    localStorage.setItem('reservations', JSON.stringify(reservations));
-    
-    toast.success("Table reserved successfully!");
+    navigate("/confirm-reservation", {
+      state: {
+        reservation: {
+          date: date.toISOString(),
+          partySize,
+        },
+      },
+    });
   };
 
   return (
@@ -113,10 +112,18 @@ const Reserve = () => {
                 <Input
                   id="partySize"
                   type="number"
-                  min="1"
+                  min="0"
                   max="20"
                   value={partySize}
-                  onChange={(e) => setPartySize(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "") {
+                      setPartySize("");
+                      return;
+                    }
+                    const value = Number(raw);
+                    setPartySize(Number.isNaN(value) ? "" : Math.max(0, value));
+                  }}
                   className="w-full"
                 />
               </div>
@@ -126,7 +133,12 @@ const Reserve = () => {
                   <p className="text-sm font-medium">Reservation Summary</p>
                   <div className="text-sm text-muted-foreground space-y-1">
                     <p>Date: {date?.toLocaleDateString()}</p>
-                    <p>Party Size: {partySize} {partySize === 1 ? 'person' : 'people'}</p>
+                    <p>
+                      Party Size:{" "}
+                      {typeof partySize === "number"
+                        ? `${partySize} ${partySize === 1 ? "person" : "people"}`
+                        : "-"}
+                    </p>
                   </div>
                 </div>
 
@@ -162,6 +174,27 @@ const Reserve = () => {
               window.location.href = '/events';
             }}>
               View Events
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showInvalidPartyDialog} onOpenChange={setShowInvalidPartyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cannot Complete Booking</DialogTitle>
+            <DialogDescription>
+              Please select at least 1 guest before confirming your reservation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end">
+            <Button
+              onClick={() => {
+                setShowInvalidPartyDialog(false);
+                setPartySize("");
+              }}
+            >
+              Close
             </Button>
           </div>
         </DialogContent>
