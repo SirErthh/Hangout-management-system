@@ -254,6 +254,17 @@ const StaffReservations = () => {
             const timeLabel = reservedDate
               ? reservedDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
               : "-";
+            const normalizedStatus = reservation.status?.toLowerCase?.() ?? "";
+            const isConfirmed =
+              normalizedStatus === "confirmed" ||
+              normalizedStatus === "seated" ||
+              normalizedStatus === "completed";
+            const isCancelled =
+              normalizedStatus === "cancelled" ||
+              normalizedStatus === "canceled" ||
+              normalizedStatus === "no_show";
+            const canAssignTable = !(isConfirmed || isCancelled) && !reservation.assigned_table_id;
+            const canMarkConfirmed = !(isConfirmed || isCancelled);
 
             return (
               <Card key={reservation.id} className="glass-effect border-2">
@@ -295,39 +306,47 @@ const StaffReservations = () => {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => handleStatusUpdate(reservation.id, "confirmed")}
-                      disabled={updatingId === reservation.id}
-                    >
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Mark Confirmed
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleStatusUpdate(reservation.id, "canceled")}
-                      disabled={updatingId === reservation.id}
-                    >
-                      <XCircle className="h-4 w-4 mr-2" />
-                      Cancel
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => handleAutoAssign(reservation)}
-                      disabled={updatingId === reservation.id}
-                    >
-                      Auto Assign Table
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleManualAssign(reservation)}
-                      disabled={updatingId === reservation.id}
-                    >
-                      Manual Assign
-                    </Button>
+                    {canMarkConfirmed && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleStatusUpdate(reservation.id, "confirmed")}
+                        disabled={updatingId === reservation.id}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Mark Confirmed
+                      </Button>
+                    )}
+                    {!isCancelled && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleStatusUpdate(reservation.id, "canceled")}
+                        disabled={updatingId === reservation.id}
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Cancel
+                      </Button>
+                    )}
+                    {canAssignTable && (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => handleAutoAssign(reservation)}
+                          disabled={updatingId === reservation.id}
+                        >
+                          Auto Assign Table
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleManualAssign(reservation)}
+                          disabled={updatingId === reservation.id}
+                        >
+                          Manual Assign
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>

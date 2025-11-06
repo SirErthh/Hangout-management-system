@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { toast } from "sonner";
 import { Users, AlertCircle, Calendar as CalendarIcon } from "lucide-react";
 
 const Reserve = () => {
+  const navigate = useNavigate();
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [partySize, setPartySize] = useState<number>(2);
   const [showEventDialog, setShowEventDialog] = useState(false);
@@ -34,28 +36,21 @@ const Reserve = () => {
       return;
     }
 
+    if (!partySize || partySize < 1) {
+      toast.error("Cannot book with 0 people. At least 1 person is required.");
+      return;
+    }
+
     if (isEventDate(date)) {
       setShowEventDialog(true);
       return;
     }
-    
-    const reservations = JSON.parse(localStorage.getItem('reservations') || '[]');
-    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-    
-    const newReservation = {
-      id: Date.now(),
-      userId: currentUser.id,
-      customer: `${currentUser.fname} ${currentUser.lname}`,
-      date: date.toISOString(),
-      partySize,
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    };
-    
-    reservations.push(newReservation);
-    localStorage.setItem('reservations', JSON.stringify(reservations));
-    
-    toast.success("Table reserved successfully!");
+    navigate("/reserve/confirm", {
+      state: {
+        date: date.toISOString(),
+        partySize,
+      },
+    });
   };
 
   return (
@@ -115,8 +110,11 @@ const Reserve = () => {
                   type="number"
                   min="1"
                   max="20"
-                  value={partySize}
-                  onChange={(e) => setPartySize(parseInt(e.target.value))}
+                  value={partySize === 0 ? "" : partySize}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value, 10);
+                    setPartySize(Number.isNaN(value) ? 0 : value);
+                  }}
                   className="w-full"
                 />
               </div>
@@ -126,17 +124,22 @@ const Reserve = () => {
                   <p className="text-sm font-medium">Reservation Summary</p>
                   <div className="text-sm text-muted-foreground space-y-1">
                     <p>Date: {date?.toLocaleDateString()}</p>
-                    <p>Party Size: {partySize} {partySize === 1 ? 'person' : 'people'}</p>
+                    <p>
+                      Party Size:{" "}
+                      {partySize > 0
+                        ? `${partySize} ${partySize === 1 ? 'person' : 'people'}`
+                        : "Not set"}
+                    </p>
                   </div>
                 </div>
 
-                <Button 
+                <Button
                   onClick={handleReserve}
                   className="w-full"
                   size="lg"
                   disabled={isEventDate(date)}
                 >
-                  Confirm Reservation
+                  Reserve
                 </Button>
               </div>
             </CardContent>

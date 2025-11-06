@@ -198,6 +198,12 @@ export const api = {
       method: "POST",
       auth: true,
     }),
+  createReservation: (payload: { date: string; partySize: number; note?: string; event_id?: number }) =>
+    apiRequest<{ reservation: any }>("/api/reservations", {
+      method: "POST",
+      body: payload,
+      auth: true,
+    }),
   getReservations: (mine = true, signal?: AbortSignal) =>
     apiRequest<{ reservations: any[] }>(`/api/reservations${mine ? "?mine=1" : ""}`, {
       auth: true,
