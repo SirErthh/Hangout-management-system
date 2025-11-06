@@ -1,138 +1,105 @@
-import { useState, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Plus, Minus, ShoppingCart } from "lucide-react";
+import { api, handleApiError } from "@/lib/api";
 
 type MenuItem = {
   id: number;
   name: string;
-  description?: string;
+  description?: string | null;
   price: number;
-  // สคีมาใหม่
-  type?: "food" | "drink";
-  image_url?: string;
+  type: "food" | "drink";
+  image_url?: string | null;
   is_active?: boolean;
-  // รองรับของเก่า
-  category?: string; // "food" | "drinks"
-  image?: string;    // emoji | url
 };
 
 const Menu = () => {
   const navigate = useNavigate();
   const [cart, setCart] = useState<Record<number, number>>({});
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // --- normalize ข้อมูลให้เป็นสคีมาเดียวกัน ---
-  const normalize = (items: any[]): MenuItem[] => {
-    return (items || []).map((raw: any) => {
-      const type: "food" | "drink" =
-        raw.type ??
-        (raw.category === "drinks" ? "drink" : raw.category) ??
-        "food";
-
-      const image_url: string =
-        raw.image_url ?? raw.image ?? "";
-
-      const is_active: boolean = raw.is_active ?? true;
-
-      return {
-        id: Number(raw.id),
-        name: String(raw.name ?? ""),
-        description: raw.description ? String(raw.description) : "",
-        price: Number(raw.price ?? 0),
-        type,
-        image_url,
-        is_active,
-      };
-    });
-  };
-
-  // --- โหลดเมนู + sync cart ---
-  const load = () => {
-    const raw = localStorage.getItem("menuItems");
-    let parsed: any[] = raw ? JSON.parse(raw) : [];
-
-    // default สำหรับครั้งแรก
-    if (!raw) {
-      parsed = [
-        { id: 1, type: "food",  name: "Signature Burger", description: "Angus beef, special sauce, lettuce, cheese", price: 280, image_url: "🍔", is_active: true },
-        { id: 2, type: "food",  name: "Truffle Pasta",    description: "Creamy truffle sauce with mushrooms",      price: 320, image_url: "🍝", is_active: true },
-        { id: 3, type: "food",  name: "Caesar Salad",     description: "Fresh romaine, parmesan, croutons",        price: 180, image_url: "🥗", is_active: true },
-        { id: 4, type: "food",  name: "Grilled Salmon",   description: "With asparagus and lemon butter",          price: 420, image_url: "🐟", is_active: true },
-        { id: 5, type: "drink", name: "Mojito",           description: "Rum, mint, lime, soda",                    price: 220, image_url: "🍹", is_active: true },
-        { id: 6, type: "drink", name: "Craft Beer",       description: "Local IPA on tap",                         price: 180, image_url: "🍺", is_active: true },
-        { id: 7, type: "drink", name: "Espresso Martini", description: "Vodka, coffee liqueur, espresso",          price: 260, image_url: "☕", is_active: true },
-        { id: 8, type: "drink", name: "Fresh Juice",      description: "Orange, apple, or pineapple",              price: 120, image_url: "🥤", is_active: true },
-      ];
-      localStorage.setItem("menuItems", JSON.stringify(parsed));
+  const fetchMenu = useCallback(async (signal?: AbortSignal) => {
+    if (!signal) {
+      setLoading(true);
     }
-
-    const normalized = normalize(parsed);
-    setMenuItems(normalized);
-
-    // sync cart: เก็บเฉพาะ id ที่ยังอยู่และยัง active
-    setCart((prev) => {
-      const activeId = new Set(normalized.filter(m => m.is_active !== false).map(m => m.id));
-      const next: Record<number, number> = {};
-      Object.entries(prev).forEach(([idStr, qty]) => {
-        const id = Number(idStr);
-        if (activeId.has(id) && (qty ?? 0) > 0) next[id] = qty;
+    try {
+      const { items } = await api.getMenuItems(signal);
+      setMenuItems(items || []);
+      setCart((prev) => {
+        const ids = new Set((items || []).map((item) => item.id));
+        const next: Record<number, number> = {};
+        Object.entries(prev).forEach(([idStr, qty]) => {
+          const id = Number(idStr);
+          if (ids.has(id) && qty > 0) {
+            next[id] = qty;
+          }
+        });
+        return next;
       });
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    load();
-
-    // listeners: รับการอัปเดตจากหน้าแอดมิน/แท็บอื่น/กลับมาโฟกัส
-    const handleMenuUpdated = () => load();
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === "menuItems") load();
-    };
-    const handleFocus = () => load();
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") load();
-    };
-
-    window.addEventListener("menu-updated", handleMenuUpdated);
-    window.addEventListener("storage", handleStorage);
-    window.addEventListener("focus", handleFocus);
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    return () => {
-      window.removeEventListener("menu-updated", handleMenuUpdated);
-      window.removeEventListener("storage", handleStorage);
-      window.removeEventListener("focus", handleFocus);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    } catch (error) {
+      if (!signal?.aborted) {
+        handleApiError(error, "Failed to load menu items");
+        setMenuItems([]);
+        setCart({});
+      }
+    } finally {
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
+    }
   }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetchMenu(controller.signal);
+
+    return () => controller.abort();
+  }, [fetchMenu]);
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      fetchMenu();
+    };
+    window.addEventListener("menu-updated", handleRefresh);
+    return () => window.removeEventListener("menu-updated", handleRefresh);
+  }, [fetchMenu]);
+
+  const activeItems = useMemo(
+    () => menuItems.filter((item) => item.is_active !== false),
+    [menuItems],
+  );
+
+  const categorized = useMemo(() => {
+    const food = activeItems.filter((item) => item.type === "food");
+    const drink = activeItems.filter((item) => item.type === "drink");
+    return { food, drink };
+  }, [activeItems]);
+
   const updateCart = (itemId: number, delta: number) => {
-    setCart(prev => {
-      const newQty = (prev[itemId] || 0) + delta;
-      if (newQty <= 0) {
-        const { [itemId]: _, ...rest } = prev;
+    setCart((prev) => {
+      const nextQty = (prev[itemId] || 0) + delta;
+      if (nextQty <= 0) {
+        const { [itemId]: _removed, ...rest } = prev;
         return rest;
       }
-      return { ...prev, [itemId]: newQty };
+      return { ...prev, [itemId]: nextQty };
     });
   };
 
   const getTotalItems = () => Object.values(cart).reduce((sum, qty) => sum + qty, 0);
 
-  const getTotalPrice = () => {
-    return Object.entries(cart).reduce((sum, [itemId, qty]) => {
-      const item = menuItems.find(i => i.id === Number(itemId));
-      return sum + (item?.price || 0) * Number(qty);
+  const getTotalPrice = () =>
+    Object.entries(cart).reduce((sum, [id, qty]) => {
+      const item = activeItems.find((i) => i.id === Number(id));
+      return sum + (item?.price || 0) * qty;
     }, 0);
-  };
 
   const handleCheckout = () => {
     if (getTotalItems() === 0) {
@@ -141,7 +108,7 @@ const Menu = () => {
     }
 
     const orderItems = Object.entries(cart).map(([itemId, qty]) => {
-      const item = menuItems.find(i => i.id === Number(itemId));
+      const item = activeItems.find((i) => i.id === Number(itemId));
       return {
         id: item?.id,
         name: item?.name,
@@ -161,12 +128,10 @@ const Menu = () => {
 
   const renderCard = (item: MenuItem) => {
     const qty = cart[item.id] || 0;
-
+    const image = item.image_url;
     const isImageLike =
-      item.image_url &&
-      (item.image_url.startsWith("http") ||
-        item.image_url.startsWith("data:") ||
-        item.image_url.startsWith("blob:"));
+      image &&
+      (image.startsWith("http") || image.startsWith("data:") || image.startsWith("blob:"));
 
     return (
       <Card key={item.id} className="group hover:shadow-xl transition-smooth border-2">
@@ -175,10 +140,10 @@ const Menu = () => {
             <div className="flex-1">
               {isImageLike ? (
                 <div className="w-full h-32 mb-2 overflow-hidden rounded-lg">
-                  <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                  <img src={image} alt={item.name} className="w-full h-full object-cover" />
                 </div>
               ) : (
-                <div className="text-4xl mb-2">{item.image_url || "🖼️"}</div>
+                <div className="text-4xl mb-2">{image || "🖼️"}</div>
               )}
               <CardTitle className="text-xl">{item.name}</CardTitle>
               {item.description && <CardDescription>{item.description}</CardDescription>}
@@ -190,101 +155,96 @@ const Menu = () => {
           <div className="flex items-center justify-between">
             {qty > 0 ? (
               <div className="flex items-center gap-3">
-                <Button
-                  size="icon"
-                  variant="outline"
-                  onClick={() => updateCart(item.id, -1)}
-                >
+                <Button size="icon" variant="outline" onClick={() => updateCart(item.id, -1)}>
                   <Minus className="h-4 w-4" />
                 </Button>
                 <span className="font-semibold text-lg w-8 text-center">{qty}</span>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  onClick={() => updateCart(item.id, 1)}
-                >
+                <Button size="icon" variant="outline" onClick={() => updateCart(item.id, 1)}>
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
             ) : (
               <Button
+                variant="outline"
+                className="gap-2"
                 onClick={() => updateCart(item.id, 1)}
-                className="w-full"
-                disabled={item.is_active === false}
               >
-                <Plus className="h-4 w-4 mr-2" />
-                {item.is_active === false ? "Unavailable" : "Add to Cart"}
+                <Plus className="h-4 w-4" />
+                Add
               </Button>
             )}
+            <Button className="gap-2" onClick={handleCheckout}>
+              <ShoppingCart className="h-4 w-4" />
+              Checkout
+            </Button>
           </div>
         </CardContent>
       </Card>
     );
   };
 
-  const foods = useMemo(
-    () => menuItems.filter(i => i.type === "food" && i.is_active !== false),
-    [menuItems]
-  );
-  const drinks = useMemo(
-    () => menuItems.filter(i => i.type === "drink" && i.is_active !== false),
-    [menuItems]
-  );
-
   return (
     <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold mb-2">Menu</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">Browse our food & drinks</p>
+          <h1 className="text-3xl font-bold mb-2">Food & Beverage Menu</h1>
+          <p className="text-muted-foreground">Select items and place your order</p>
         </div>
-
-        {getTotalItems() > 0 && (
-          <Card className="glass-effect w-full sm:w-auto">
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
-                <div className="text-center sm:text-right">
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    {getTotalItems()} items
-                  </p>
-                  <p className="text-lg sm:text-xl font-bold">฿{getTotalPrice()}</p>
-                </div>
-                <Button onClick={handleCheckout} size="lg" className="w-full sm:w-auto">
-                  <ShoppingCart className="h-4 w-4 mr-2" />
-                  Checkout
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <Button
+          size="lg"
+          className="gap-2 bg-gradient-primary hover:opacity-90"
+          onClick={handleCheckout}
+          disabled={getTotalItems() === 0}
+        >
+          <ShoppingCart className="h-4 w-4" />
+          Checkout ({getTotalItems()} items)
+        </Button>
       </div>
 
-      <Tabs defaultValue="food" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="food" className="text-xs sm:text-sm">Food</TabsTrigger>
-          <TabsTrigger value="drink" className="text-xs sm:text-sm">Drinks</TabsTrigger>
+      <Tabs defaultValue="food" className="space-y-6">
+        <TabsList className="grid grid-cols-2 sm:w-[360px]">
+          <TabsTrigger value="food">Food</TabsTrigger>
+          <TabsTrigger value="drink">Drinks</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="food" className="mt-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {foods.map(renderCard)}
-            {foods.length === 0 && (
-              <div className="text-center text-muted-foreground py-8 col-span-full">
-                No food items available.
-              </div>
-            )}
-          </div>
+        <TabsContent value="food">
+          {loading ? (
+            <Card>
+              <CardContent className="p-12 text-center text-muted-foreground">
+                Loading menu...
+              </CardContent>
+            </Card>
+          ) : categorized.food.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center text-muted-foreground">
+                No food items available right now.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {categorized.food.map(renderCard)}
+            </div>
+          )}
         </TabsContent>
 
-        <TabsContent value="drink" className="mt-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {drinks.map(renderCard)}
-            {drinks.length === 0 && (
-              <div className="text-center text-muted-foreground py-8 col-span-full">
-                No drink items available.
-              </div>
-            )}
-          </div>
+        <TabsContent value="drink">
+          {loading ? (
+            <Card>
+              <CardContent className="p-12 text-center text-muted-foreground">
+                Loading menu...
+              </CardContent>
+            </Card>
+          ) : categorized.drink.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center text-muted-foreground">
+                No drinks available right now.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {categorized.drink.map(renderCard)}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

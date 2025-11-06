@@ -110,4 +110,83 @@ final class UserService
             'pass' => password_hash($plainPassword, PASSWORD_BCRYPT),
         ]);
     }
+
+    public static function all(): array
+    {
+        $stmt = Database::connection()->query(
+            'SELECT u.id, u.fname, u.lname, u.email, u.phone, r.role_name AS role
+             FROM USERS u
+             LEFT JOIN USERROLES ur ON ur.user_id = u.id
+             LEFT JOIN ROLES r ON r.id = ur.role_id
+             ORDER BY u.id ASC'
+        );
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public static function update(int $userId, array $data): array
+    {
+        $current = self::findById($userId);
+        if (!$current) {
+            throw new RuntimeException('User not found', 404);
+        }
+
+        $updates = [
+            'fname' => array_key_exists('fname', $data) ? trim((string)$data['fname']) : $current['fname'],
+            'lname' => array_key_exists('lname', $data) ? trim((string)$data['lname']) : $current['lname'],
+            'email' => array_key_exists('email', $data) ? strtolower(trim((string)$data['email'])) : $current['email'],
+            'phone' => array_key_exists('phone', $data) ? trim((string)$data['phone']) : ($current['phone'] ?? ''),
+        ];
+
+        if ($updates['fname'] === '' || $updates['email'] === '') {
+            throw new RuntimeException('First name and email are required', 422);
+        }
+
+        if (!filter_var($updates['email'], FILTER_VALIDATE_EMAIL)) {
+            throw new RuntimeException('Invalid email address', 422);
+        }
+
+        $existing = self::findByEmail($updates['email']);
+        if ($existing && (int)$existing['id'] !== $userId) {
+            throw new RuntimeException('Email already in use', 409);
+        }
+
+        $stmt = Database::connection()->prepare(
+            'UPDATE USERS
+             SET fname = :fname,
+                 lname = :lname,
+                 email = :email,
+                 phone = :phone
+             WHERE id = :id'
+        );
+
+        $stmt->execute([
+            'id' => $userId,
+            'fname' => $updates['fname'],
+            'lname' => $updates['lname'],
+            'email' => $updates['email'],
+            'phone' => $updates['phone'],
+        ]);
+
+        return self::findById($userId) ?? [];
+    }
+
+    public static function delete(int $userId): void
+    {
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+
+        try {
+            $link = $pdo->prepare('DELETE FROM USERROLES WHERE user_id = :user');
+            $link->execute(['user' => $userId]);
+
+            $delete = $pdo->prepare('DELETE FROM USERS WHERE id = :id');
+            $delete->execute(['id' => $userId]);
+
+            $pdo->commit();
+        } catch (\PDOException $e) {
+            $pdo->rollBack();
+            throw new RuntimeException('Unable to delete user account', 409);
+        }
+    }
 }

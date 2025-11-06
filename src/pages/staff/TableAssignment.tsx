@@ -1,62 +1,73 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Users } from "lucide-react";
+import { api, handleApiError } from "@/lib/api";
+
+type TableRow = {
+  id: number;
+  number: string;
+  capacity: number;
+  status: "available" | "occupied" | "inactive";
+};
 
 const TableAssignment = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const reservation = location.state?.reservation;
-  
-  const [tables, setTables] = useState<any[]>([]);
+
+  const [tables, setTables] = useState<TableRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [assigningId, setAssigningId] = useState<number | null>(null);
 
   useEffect(() => {
-    // Load tables from localStorage
-    const storedTables = localStorage.getItem('tables');
-    if (storedTables) {
-      setTables(JSON.parse(storedTables));
-    } else {
-      const defaultTables = [
-        { id: 1, number: "1", capacity: 2, status: "available" },
-        { id: 2, number: "2", capacity: 4, status: "available" },
-        { id: 3, number: "3", capacity: 4, status: "occupied" },
-        { id: 4, number: "4", capacity: 6, status: "available" },
-        { id: 5, number: "5", capacity: 2, status: "occupied" },
-        { id: 6, number: "6", capacity: 8, status: "available" },
-        { id: 7, number: "7", capacity: 4, status: "available" },
-        { id: 8, number: "8", capacity: 2, status: "available" },
-      ];
-      localStorage.setItem('tables', JSON.stringify(defaultTables));
-      setTables(defaultTables);
-    }
+    const controller = new AbortController();
+
+    const loadTables = async () => {
+      setLoading(true);
+      try {
+        const { tables: fetched } = await api.getTables(controller.signal);
+        if (!controller.signal.aborted) {
+          setTables(fetched ?? []);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          handleApiError(error, "Failed to load tables");
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadTables();
+
+    return () => controller.abort();
   }, []);
 
-  const handleAssignTable = (tableNumber: string) => {
-    if (!reservation) return;
-    
-    // Update reservation status
-    const reservations = JSON.parse(localStorage.getItem('reservations') || '[]');
-    const updated = reservations.map((r: any) =>
-      r.id === reservation.id ? { ...r, status: 'confirmed', table: tableNumber } : r
-    );
-    localStorage.setItem('reservations', JSON.stringify(updated));
-    
-    // Update table to occupied
-    const storedTables = JSON.parse(localStorage.getItem('tables') || JSON.stringify(tables));
-    const updatedTables = storedTables.map((t: any) => 
-      t.number === tableNumber ? { ...t, status: 'occupied' } : t
-    );
-    localStorage.setItem('tables', JSON.stringify(updatedTables));
-    setTables(updatedTables);
-    
-    toast.success(`Table ${tableNumber} assigned and marked as occupied!`);
-    navigate('/staff/reservations');
+  const handleAssignTable = async (table: TableRow) => {
+    if (!reservation) {
+      navigate("/staff/reservations");
+      return;
+    }
+
+    setAssigningId(table.id);
+    try {
+      await api.assignReservationTable(reservation.id, table.id);
+      toast.success(`Table ${table.number} assigned and marked as occupied!`);
+      navigate("/staff/reservations", { replace: true });
+    } catch (error) {
+      handleApiError(error, "Failed to assign table");
+    } finally {
+      setAssigningId(null);
+    }
   };
 
   if (!reservation) {
-    navigate('/staff/reservations');
+    navigate("/staff/reservations", { replace: true });
     return null;
   }
 
@@ -69,43 +80,67 @@ const TableAssignment = () => {
         </p>
       </div>
 
-      <div className="grid md:grid-cols-4 gap-4">
-        {tables.map((table) => (
-          <Card 
-            key={table.id}
-            className={`glass-effect border-2 cursor-pointer transition-smooth ${
-              table.status === 'occupied'
-                ? 'opacity-50 cursor-not-allowed'
-                : 'hover:shadow-xl hover:scale-105'
-            }`}
-            onClick={() => table.status === 'available' && handleAssignTable(table.number)}
-          >
-            <CardHeader>
-              <CardTitle className="text-center text-4xl">
-                {table.number}
-              </CardTitle>
-              <CardDescription className="text-center flex items-center justify-center gap-2">
-                <Users className="h-4 w-4" />
-                {table.capacity} seats
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-center py-2 rounded-lg font-semibold ${
-                table.status === 'available' 
-                  ? 'bg-green-500/20 text-green-500'
-                  : 'bg-red-500/20 text-red-500'
-              }`}>
-                {table.status}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {loading ? (
+        <Card>
+          <CardContent className="p-12 text-center text-muted-foreground">
+            Loading tables...
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid md:grid-cols-4 gap-4">
+          {tables.map((table) => (
+            <Card
+              key={table.id}
+              className={`glass-effect border-2 cursor-pointer transition-smooth ${
+                table.status !== "available" || table.capacity < reservation.partySize
+                  ? "opacity-50 cursor-not-allowed"
+                  : "hover:shadow-xl hover:scale-105"
+              }`}
+              onClick={() => {
+                if (
+                  assigningId === null &&
+                  table.status === "available" &&
+                  table.capacity >= reservation.partySize
+                ) {
+                  handleAssignTable(table);
+                }
+              }}
+            >
+              <CardHeader>
+                <CardTitle className="text-center text-4xl">{table.number}</CardTitle>
+                <CardDescription className="text-center flex items-center justify-center gap-2">
+                  <Users className="h-4 w-4" />
+                  {table.capacity} seats
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div
+                  className={`text-center py-2 rounded-lg font-semibold ${
+                    table.status === "available"
+                      ? "bg-green-500/20 text-green-500"
+                      : table.status === "inactive"
+                      ? "bg-yellow-500/20 text-yellow-600"
+                      : "bg-red-500/20 text-red-500"
+                  }`}
+                >
+                  {table.status}
+                </div>
+                {table.capacity < reservation.partySize && (
+                  <p className="text-xs text-center text-muted-foreground mt-2">
+                    Capacity too small
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
-      <Button 
-        variant="outline" 
-        onClick={() => navigate('/staff/reservations')}
+      <Button
+        variant="outline"
+        onClick={() => navigate("/staff/reservations")}
         className="w-full"
+        disabled={assigningId !== null}
       >
         Cancel
       </Button>

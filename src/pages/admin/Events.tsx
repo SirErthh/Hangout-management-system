@@ -1,41 +1,80 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Plus, Calendar, Edit, Trash2 } from "lucide-react";
+import { api, handleApiError } from "@/lib/api";
+
+type EventItem = {
+  id: number;
+  name: string;
+  date?: string | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  price: number;
+  description?: string;
+  image_url?: string;
+  ticketCodePrefix?: string;
+  artist?: string;
+  status?: string;
+};
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 
 const AdminEvents = () => {
-  const [events, setEvents] = useState<any[]>([]);
-  const [isOpen, setIsOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<any>(null);
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     date: "",
     price: "",
     description: "",
-    imageUrl: "",          // http(s)://, data:, หรือ emoji
-    ticketCodePrefix: ""
+    imageUrl: "",
+    ticketCodePrefix: "",
   });
 
   useEffect(() => {
-    const storedEvents = localStorage.getItem("events");
-    if (storedEvents) {
-      setEvents(JSON.parse(storedEvents));
-    } else {
-      const defaultEvents = [
-        { id: 1, name: "Jazz Night", date: "2025-11-01", price: 500, description: "Live jazz performance", image_url: "🎷", ticketCodePrefix: "GEF" },
-        { id: 2, name: "EDM Party",  date: "2025-11-15", price: 800, description: "Electronic dance music festival", image_url: "🎧", ticketCodePrefix: "TMD" }
-      ];
-      setEvents(defaultEvents);
-      localStorage.setItem("events", JSON.stringify(defaultEvents));
-    }
+    const controller = new AbortController();
+
+    const loadEvents = async () => {
+      setLoading(true);
+      try {
+        const { events: fetched } = await api.getEvents(controller.signal);
+        setEvents(fetched ?? []);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          handleApiError(error, "Failed to load events");
+          setEvents([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadEvents();
+
+    return () => controller.abort();
   }, []);
+
+  const notifyEventsUpdated = () => {
+    window.dispatchEvent(new Event("events-updated"));
+  };
 
   const handleFileChange = (file?: File) => {
     if (!file) return;
@@ -50,87 +89,103 @@ const AdminEvents = () => {
     reader.readAsDataURL(file);
   };
 
-  const validatePrefix = (val: string) => /^[A-Z]{3}$/.test(val);
+  const openNewEventDialog = () => {
+    setEditingEvent(null);
+    setFormData({
+      name: "",
+      date: "",
+      price: "",
+      description: "",
+      imageUrl: "",
+      ticketCodePrefix: "",
+    });
+    setDialogOpen(true);
+  };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleEdit = (event: EventItem) => {
+    setEditingEvent(event);
+    setFormData({
+      name: event.name ?? "",
+      date: event.date ?? "",
+      price: String(event.price ?? ""),
+      description: event.description ?? "",
+      imageUrl: event.image_url ?? "",
+      ticketCodePrefix: (event.ticketCodePrefix ?? "").toUpperCase(),
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // guards
     const priceNum = Number(formData.price);
-    if (isNaN(priceNum) || priceNum < 0) {
+    if (Number.isNaN(priceNum) || priceNum < 0) {
       toast.error("Invalid price");
       return;
     }
-    if (!validatePrefix(formData.ticketCodePrefix)) {
-      toast.error("Ticket code prefix must be exactly 3 uppercase letters (e.g., GEF)");
+
+    const payload = {
+      name: formData.name.trim(),
+      date: formData.date,
+      price: priceNum,
+      description: formData.description,
+      image_url: formData.imageUrl,
+      ticketCodePrefix: formData.ticketCodePrefix.trim().toUpperCase(),
+    };
+
+    if (!payload.name || !payload.ticketCodePrefix || payload.ticketCodePrefix.length !== 3) {
+      toast.error("Ticket code prefix must be exactly 3 characters");
       return;
     }
 
-    let updatedEvents;
-    if (editingEvent) {
-      updatedEvents = events.map((evt) =>
-        evt.id === editingEvent.id
-          ? {
-              ...evt,
-              name: formData.name,
-              date: formData.date,
-              price: priceNum,
-              description: formData.description,
-              image_url: formData.imageUrl,
-              ticketCodePrefix: formData.ticketCodePrefix
-            }
-          : evt
-      );
-      toast.success("Event updated successfully!");
-    } else {
-      const newEvent = {
-        id: Date.now(),
-        name: formData.name,
-        date: formData.date,
-        price: priceNum,
-        description: formData.description,
-        image_url: formData.imageUrl,
-        ticketCodePrefix: formData.ticketCodePrefix
-      };
-      updatedEvents = [...events, newEvent];
-      toast.success("Event created successfully!");
+    setSaving(true);
+    try {
+      let updated: EventItem;
+      if (editingEvent) {
+        const { event } = await api.updateEvent(editingEvent.id, payload);
+        updated = event;
+        setEvents((prev) => prev.map((evt) => (evt.id === event.id ? event : evt)));
+        toast.success("Event updated successfully!");
+      } else {
+        const { event } = await api.createEvent(payload);
+        updated = event;
+        setEvents((prev) => [event, ...prev]);
+        toast.success("Event created successfully!");
+      }
+      notifyEventsUpdated();
+      setDialogOpen(false);
+      setEditingEvent(updated);
+      setFormData({
+        name: "",
+        date: "",
+        price: "",
+        description: "",
+        imageUrl: "",
+        ticketCodePrefix: "",
+      });
+    } catch (error) {
+      handleApiError(error, "Failed to save event");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteEvent = async (id: number) => {
+    if (!confirm("Delete this event?")) {
+      return;
     }
 
-    setEvents(updatedEvents);
-    localStorage.setItem("events", JSON.stringify(updatedEvents));
-
-    setIsOpen(false);
-    setEditingEvent(null);
-    setFormData({ name: "", date: "", price: "", description: "", imageUrl: "", ticketCodePrefix: "" });
+    try {
+      await api.deleteEvent(id);
+      setEvents((prev) => prev.filter((evt) => evt.id !== id));
+      notifyEventsUpdated();
+      toast.success("Event deleted");
+    } catch (error) {
+      handleApiError(error, "Failed to delete event");
+    }
   };
 
-  const handleEdit = (event: any) => {
-    setEditingEvent(event);
-    setFormData({
-      name: event.name,
-      date: event.date,
-      price: String(event.price),
-      description: event.description,
-      imageUrl: event.image_url || "",
-      ticketCodePrefix: (event.ticketCodePrefix || "").toUpperCase()
-    });
-    setIsOpen(true);
-  };
-
-  const handleNewEvent = () => {
-    setEditingEvent(null);
-    setFormData({ name: "", date: "", price: "", description: "", imageUrl: "", ticketCodePrefix: "" });
-    setIsOpen(true);
-  };
-
-  const deleteEvent = (id: number) => {
-    const updatedEvents = events.filter((e) => e.id !== id);
-    setEvents(updatedEvents);
-    localStorage.setItem("events", JSON.stringify(updatedEvents));
-    toast.success("Event deleted");
-  };
-
-  const renderThumb = (urlOrEmoji: string, name: string) => {
+  const renderThumb = (urlOrEmoji: string | undefined, name: string) => {
     const isImageURL =
       typeof urlOrEmoji === "string" &&
       (urlOrEmoji.startsWith("http://") ||
@@ -156,52 +211,68 @@ const AdminEvents = () => {
           <p className="text-muted-foreground">Create and manage events</p>
         </div>
 
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button size="lg" onClick={handleNewEvent}>
+            <Button size="lg" onClick={openNewEventDialog}>
               <Plus className="h-4 w-4 mr-2" />
-              Create Event
+              New Event
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>{editingEvent ? "Edit Event" : "Create New Event"}</DialogTitle>
-              <DialogDescription>
-                {editingEvent ? "Update event details" : "Add a new event to the system"}
-              </DialogDescription>
+              <DialogTitle>{editingEvent ? "Edit Event" : "Create Event"}</DialogTitle>
+              <DialogDescription>Provide event details for guests.</DialogDescription>
             </DialogHeader>
-
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Event Name</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Event Name</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="date">Date</Label>
+                  <Input
+                    id="date"
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
+                  />
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="date">Date</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="price">Ticket Price (฿)</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                  required
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="price">Ticket Price (THB)</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    min="0"
+                    value={formData.price}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, price: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ticketCodePrefix">Ticket Code Prefix</Label>
+                  <Input
+                    id="ticketCodePrefix"
+                    maxLength={3}
+                    value={formData.ticketCodePrefix}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        ticketCodePrefix: e.target.value.toUpperCase(),
+                      }))
+                    }
+                    placeholder="e.g. GEF"
+                    required
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -209,89 +280,91 @@ const AdminEvents = () => {
                 <Textarea
                   id="description"
                   value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  required
+                  onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                  placeholder="What should guests expect?"
                 />
               </div>
 
-              {/* Upload local image */}
               <div className="space-y-2">
-                <Label>Upload Image (optional)</Label>
+                <Label>Cover Image</Label>
                 <Input type="file" accept="image/*" onChange={(e) => handleFileChange(e.target.files?.[0])} />
-                {formData.imageUrl && (formData.imageUrl.startsWith("data:") || formData.imageUrl.startsWith("http")) && (
-                  <div className="w-full h-40 mt-2 overflow-hidden rounded-lg border">
-                    <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
-                  </div>
-                )}
-              </div>
-
-              {/* URL or Emoji fallback */}
-              <div className="space-y-2">
-                <Label htmlFor="image_url">Image URL or Emoji (fallback)</Label>
                 <Input
-                  id="image_url"
                   value={formData.imageUrl}
-                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                  placeholder="Upload above or enter https://... or 🎟️"
-                />
-                <p className="text-xs text-muted-foreground">If a file is uploaded, it will be used first.</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="ticketCodePrefix">Ticket Code Prefix (3 letters)</Label>
-                <Input
-                  id="ticketCodePrefix"
-                  value={formData.ticketCodePrefix.toUpperCase()}
-                  onChange={(e) =>
-                    setFormData({ ...formData, ticketCodePrefix: e.target.value.toUpperCase().slice(0, 3) })
-                  }
-                  placeholder="GEF, TMD, etc."
-                  maxLength={3}
-                  required
+                  onChange={(e) => setFormData((prev) => ({ ...prev, imageUrl: e.target.value }))}
+                  placeholder="Or paste emoji / image URL"
                 />
               </div>
 
-              <Button type="submit" className="w-full">
-                {editingEvent ? "Update Event" : "Create Event"}
-              </Button>
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? "Saving…" : editingEvent ? "Update Event" : "Create Event"}
+                </Button>
+              </div>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {events.map((event) => (
-          <Card key={event.id} className="glass-effect border-2 hover:shadow-xl transition-smooth">
-            {renderThumb(event.image_url, event.name)}
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <CardTitle>{event.name}</CardTitle>
-                  <CardDescription className="flex items-center gap-2 mt-2">
-                    <Calendar className="h-4 w-4" />
-                    {new Date(event.date).toLocaleDateString()}
-                  </CardDescription>
+      {loading ? (
+        <Card className="glass-effect">
+          <CardContent className="p-12 text-center text-muted-foreground">Loading events…</CardContent>
+        </Card>
+      ) : events.length === 0 ? (
+        <Card className="glass-effect">
+          <CardContent className="p-12 text-center text-muted-foreground">
+            No events yet. Click “New Event” to add one.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {events.map((event) => (
+            <Card key={event.id} className="glass-effect border-2 overflow-hidden">
+              {renderThumb(event.image_url, event.name)}
+              <CardHeader className="space-y-2">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  {event.name}
+                </CardTitle>
+                <CardDescription className="space-y-1">
+                  <div>
+                    <span className="font-semibold">Date:</span>{" "}
+                    {event.date ? new Date(event.date).toLocaleDateString() : "TBA"}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Price:</span> ฿{event.price}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Ticket Code Prefix:</span>{" "}
+                    {event.ticketCodePrefix ?? "—"}
+                  </div>
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground min-h-[3rem]">
+                  {event.description || "No description provided."}
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="secondary" className="flex-1" onClick={() => handleEdit(event)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="flex-1"
+                    onClick={() => deleteEvent(event.id)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">{event.description}</p>
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-2xl font-bold">฿{event.price}</span>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(event)}>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit
-                </Button>
-                <Button variant="destructive" size="sm" onClick={() => deleteEvent(event.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { api, authStorage, handleApiError } from "@/lib/api";
 import TopBar from "./components/TopBar";
 import Sidebar from "./components/Sidebar";
 import Landing from "./pages/Landing";
@@ -32,38 +33,43 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const App = () => {
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(authStorage.getUser());
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
 
   useEffect(() => {
-    // Load user from localStorage
-    const stored = localStorage.getItem('currentUser');
-    if (stored) {
-      setCurrentUser(JSON.parse(stored));
-    }
+    const bootstrap = async () => {
+      const token = authStorage.getToken();
+      if (!token) {
+        authStorage.clearUser();
+        setIsBootstrapping(false);
+        return;
+      }
 
-    // Seed admin user if needed
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    if (!users.some((u: any) => u.role === 'admin')) {
-      users.push({
-        id: 1,
-        fname: 'Admin',
-        lname: 'User',
-        email: 'admin@hangout',
-        pass: '1234',
-        role: 'admin'
-      });
-      localStorage.setItem('users', JSON.stringify(users));
-    }
+      try {
+        const { user } = await api.me();
+        setCurrentUser(user);
+        authStorage.setUser(user);
+      } catch (error) {
+        authStorage.clearAll();
+        setCurrentUser(null);
+        handleApiError(error, "Session expired. Please login again.");
+      } finally {
+        setIsBootstrapping(false);
+      }
+    };
+
+    bootstrap();
   }, []);
 
-  const handleLogin = (user: any) => {
-    setCurrentUser(user);
-    localStorage.setItem('currentUser', JSON.stringify(user));
+  const handleLogin = (payload: { token: string; user: any }) => {
+    authStorage.setToken(payload.token);
+    authStorage.setUser(payload.user);
+    setCurrentUser(payload.user);
   };
 
   const handleLogout = () => {
+    authStorage.clearAll();
     setCurrentUser(null);
-    localStorage.removeItem('currentUser');
   };
 
   return (
@@ -79,17 +85,29 @@ const App = () => {
               <main className="flex-1">
                 <Routes>
                   <Route path="/" element={<Landing />} />
-                  <Route path="/login" element={<Login onLogin={handleLogin} />} />
-                  <Route path="/register" element={<Register />} />
+                  <Route
+                    path="/login"
+                    element={<Login onLogin={handleLogin} isBootstrapping={isBootstrapping} />}
+                  />
+                  <Route path="/register" element={<Register onRegister={handleLogin} />} />
                   <Route 
                     path="/profile" 
-                    element={currentUser ? <Profile /> : <Navigate to="/login" />} 
+                    element={
+                      currentUser ? (
+                        <Profile
+                          onProfileUpdate={setCurrentUser}
+                          onAccountDeleted={handleLogout}
+                        />
+                      ) : (
+                        <Navigate to="/login" replace />
+                      )
+                    } 
                   />
                   
                   {/* Customer Routes */}
                   <Route 
                     path="/customer" 
-                    element={currentUser?.role === 'customer' ? <Customer /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'customer' ? <Customer /> : <Navigate to="/login" replace />} 
                   />
                   <Route 
                     path="/events" 
@@ -97,67 +115,67 @@ const App = () => {
                   />
                   <Route 
                     path="/confirm-order" 
-                    element={currentUser?.role === 'customer' ? <ConfirmOrder /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'customer' ? <ConfirmOrder /> : <Navigate to="/login" replace />} 
                   />
                   <Route 
                     path="/reserve" 
-                    element={currentUser?.role === 'customer' ? <Reserve /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'customer' ? <Reserve /> : <Navigate to="/login" replace />} 
                   />
                   <Route 
                     path="/menu" 
-                    element={currentUser?.role === 'customer' ? <Menu /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'customer' ? <Menu /> : <Navigate to="/login" replace />} 
                   />
                   <Route 
                     path="/confirm-menu" 
-                    element={currentUser?.role === 'customer' ? <ConfirmMenu /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'customer' ? <ConfirmMenu /> : <Navigate to="/login" replace />} 
                   />
                   <Route 
                     path="/my-orders" 
-                    element={currentUser?.role === 'customer' ? <MyOrders /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'customer' ? <MyOrders /> : <Navigate to="/login" replace />} 
                   />
 
                   {/* Admin Routes */}
                   <Route 
                     path="/admin" 
-                    element={currentUser?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/login" replace />} 
                   />
                   <Route 
                     path="/admin/users" 
-                    element={currentUser?.role === 'admin' ? <AdminUsers /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'admin' ? <AdminUsers /> : <Navigate to="/login" replace />} 
                   />
                   <Route 
                     path="/admin/events" 
-                    element={currentUser?.role === 'admin' ? <AdminEvents /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'admin' ? <AdminEvents /> : <Navigate to="/login" replace />} 
                   />
                   <Route 
                     path="/admin/menu" 
-                    element={currentUser?.role === 'admin' ? <AdminMenu /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'admin' ? <AdminMenu /> : <Navigate to="/login" replace />} 
                   />
                   <Route 
                     path="/admin/closure" 
-                    element={currentUser?.role === 'admin' ? <DayClosure /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'admin' ? <DayClosure /> : <Navigate to="/login" replace />} 
                   />
 
                   {/* Staff Routes */}
                   <Route 
                     path="/staff" 
-                    element={currentUser?.role === 'staff' ? <StaffDashboard /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'staff' ? <StaffDashboard /> : <Navigate to="/login" replace />} 
                   />
                   <Route 
                     path="/staff/tickets" 
-                    element={currentUser?.role === 'staff' ? <StaffTickets /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'staff' ? <StaffTickets /> : <Navigate to="/login" replace />} 
                   />
                   <Route 
                     path="/staff/reservations" 
-                    element={currentUser?.role === 'staff' ? <StaffReservations /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'staff' ? <StaffReservations /> : <Navigate to="/login" replace />} 
                   />
                   <Route 
                     path="/staff/table-assignment" 
-                    element={currentUser?.role === 'staff' ? <StaffTableAssignment /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'staff' ? <StaffTableAssignment /> : <Navigate to="/login" replace />} 
                   />
                   <Route 
                     path="/staff/fnb" 
-                    element={currentUser?.role === 'staff' ? <StaffFnB /> : <Navigate to="/login" />} 
+                    element={currentUser?.role === 'staff' ? <StaffFnB /> : <Navigate to="/login" replace />} 
                   />
                   
                   {/* Catch all */}

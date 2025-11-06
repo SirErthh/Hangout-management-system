@@ -6,30 +6,39 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Lock } from "lucide-react";
+import { api, handleApiError } from "@/lib/api";
 
 interface LoginProps {
-  onLogin: (user: any) => void;
+  onLogin: (payload: { token: string; user: any }) => void;
+  isBootstrapping?: boolean;
 }
 
-const Login = ({ onLogin }: LoginProps) => {
+const Login = ({ onLogin, isBootstrapping = false }: LoginProps) => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleLogin = () => {
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const user = users.find((u: any) => u.email === email && u.pass === password);
-    
-    if (user) {
-      onLogin(user);
-      toast.success("Login successful!", { description: `Welcome back, ${user.fname}!` });
-      
-      // Navigate based on role
-      if (user.role === 'admin') navigate('/admin');
-      else if (user.role === 'staff') navigate('/staff');
-      else navigate('/customer');
-    } else {
-      toast.error("Login failed", { description: "Invalid email or password" });
+  const handleLogin = async () => {
+    if (!email || !password) {
+      toast.error("Invalid credentials", { description: "Email and password are required" });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const auth = await api.login({ email, password });
+      onLogin(auth);
+      toast.success("Login successful!", { description: `Welcome back, ${auth.user.fname}!` });
+
+      const role = auth.user.role;
+      if (role === "admin") navigate("/admin");
+      else if (role === "staff") navigate("/staff");
+      else navigate("/customer");
+    } catch (error) {
+      handleApiError(error, "Login failed");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -67,8 +76,9 @@ const Login = ({ onLogin }: LoginProps) => {
           <Button 
             className="w-full bg-gradient-primary hover:opacity-90" 
             onClick={handleLogin}
+            disabled={submitting || isBootstrapping}
           >
-            Login
+            {submitting ? "Signing in..." : "Login"}
           </Button>
           <p className="text-sm text-center text-muted-foreground">
             Don't have an account?{" "}

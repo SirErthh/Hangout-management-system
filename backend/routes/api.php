@@ -9,6 +9,8 @@ use App\Controllers\ReservationController;
 use App\Controllers\TicketController;
 use App\Controllers\FnbController;
 use App\Controllers\DayClosureController;
+use App\Controllers\ProfileController;
+use App\Controllers\UserController;
 use App\Support\Router;
 
 $router = new Router();
@@ -20,10 +22,15 @@ $reservations = new ReservationController();
 $tickets = new TicketController();
 $fnb = new FnbController();
 $dayClosure = new DayClosureController();
+$profile = new ProfileController();
+$users = new UserController();
 
 $router->post('/api/auth/register', [$auth, 'register']);
 $router->post('/api/auth/login', [$auth, 'login']);
 $router->get('/api/auth/me', [$auth, 'me'], ['auth']);
+
+$router->put('/api/profile', [$profile, 'update'], ['auth']);
+$router->delete('/api/profile', [$profile, 'destroy'], ['auth']);
 
 $router->get('/api/events', [$events, 'index']);
 $router->get('/api/events/{id}', [$events, 'show']);
@@ -54,5 +61,8 @@ $router->get('/api/tables', [$reservations, 'tables'], ['auth']);
 
 $router->get('/api/day-closure', [$dayClosure, 'show'], ['auth']);
 $router->post('/api/day-closure', [$dayClosure, 'store'], ['auth']);
+
+$router->get('/api/users', [$users, 'index'], ['auth']);
+$router->patch('/api/users/{id}/role', [$users, 'updateRole'], ['auth']);
 
 return $router;

@@ -1,67 +1,110 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { User, Trash2 } from "lucide-react";
+import { api, authStorage, handleApiError } from "@/lib/api";
 
-const Profile = () => {
+interface ProfileProps {
+  onProfileUpdate?: (user: any) => void;
+  onAccountDeleted?: () => void;
+}
+
+const Profile = ({ onProfileUpdate, onAccountDeleted }: ProfileProps) => {
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [formData, setFormData] = useState({
     fname: "",
     lname: "",
-    email: ""
+    email: "",
+    phone: "",
   });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem('currentUser');
-    if (stored) {
-      const user = JSON.parse(stored);
-      setCurrentUser(user);
-      setFormData({
-        fname: user.fname || "",
-        lname: user.lname || "",
-        email: user.email || ""
-      });
-    } else {
-      navigate('/login');
-    }
+    const loadProfile = async () => {
+      setLoading(true);
+      try {
+        const { user } = await api.me();
+        setFormData({
+          fname: user.fname ?? "",
+          lname: user.lname ?? "",
+          email: user.email ?? "",
+          phone: user.phone ?? "",
+        });
+      } catch (error) {
+        handleApiError(error, "Failed to load profile");
+        authStorage.clearAll();
+        navigate("/login", { replace: true });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
   }, [navigate]);
 
-  const handleUpdate = () => {
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const updatedUsers = users.map((u: any) => 
-      u.id === currentUser.id 
-        ? { ...u, fname: formData.fname, lname: formData.lname, email: formData.email }
-        : u
+  const handleUpdate = async () => {
+    setSaving(true);
+    try {
+      const { user } = await api.updateProfile({
+        fname: formData.fname,
+        lname: formData.lname,
+        email: formData.email,
+        phone: formData.phone,
+      });
+      authStorage.setUser(user);
+      onProfileUpdate?.(user);
+      toast.success("Profile updated successfully!");
+    } catch (error) {
+      handleApiError(error, "Failed to update profile");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await api.deleteProfile();
+      authStorage.clearAll();
+      toast.success("Account deleted successfully");
+      onAccountDeleted?.();
+      navigate("/login", { replace: true });
+    } catch (error) {
+      handleApiError(error, "Failed to delete account");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-4 sm:p-6 animate-slide-up max-w-2xl mx-auto">
+        <Card className="glass-effect border-2">
+          <CardHeader>
+            <CardTitle>Loading profile…</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground text-sm">Please wait while we load your details.</p>
+          </CardContent>
+        </Card>
+      </div>
     );
-    
-    localStorage.setItem('users', JSON.stringify(updatedUsers));
-    
-    const updatedUser = { ...currentUser, fname: formData.fname, lname: formData.lname, email: formData.email };
-    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-    setCurrentUser(updatedUser);
-    
-    toast.success("Profile updated successfully!");
-  };
-
-  const handleDelete = () => {
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const filteredUsers = users.filter((u: any) => u.id !== currentUser.id);
-    
-    localStorage.setItem('users', JSON.stringify(filteredUsers));
-    localStorage.removeItem('currentUser');
-    
-    toast.success("Account deleted successfully");
-    navigate('/login');
-  };
-
-  if (!currentUser) return null;
+  }
 
   return (
     <div className="p-4 sm:p-6 space-y-6 animate-slide-up max-w-2xl mx-auto">
@@ -84,7 +127,7 @@ const Profile = () => {
             <Input
               id="fname"
               value={formData.fname}
-              onChange={(e) => setFormData({ ...formData, fname: e.target.value })}
+              onChange={(e) => setFormData((prev) => ({ ...prev, fname: e.target.value }))}
             />
           </div>
           <div className="space-y-2">
@@ -92,7 +135,7 @@ const Profile = () => {
             <Input
               id="lname"
               value={formData.lname}
-              onChange={(e) => setFormData({ ...formData, lname: e.target.value })}
+              onChange={(e) => setFormData((prev) => ({ ...prev, lname: e.target.value }))}
             />
           </div>
           <div className="space-y-2">
@@ -101,11 +144,19 @@ const Profile = () => {
               id="email"
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
             />
           </div>
-          <Button onClick={handleUpdate} className="w-full">
-            Update Profile
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone</Label>
+            <Input
+              id="phone"
+              value={formData.phone}
+              onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
+            />
+          </div>
+          <Button onClick={handleUpdate} className="w-full" disabled={saving}>
+            {saving ? "Updating…" : "Update Profile"}
           </Button>
         </CardContent>
       </Card>
@@ -121,7 +172,7 @@ const Profile = () => {
         <CardContent>
           <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
             <DialogTrigger asChild>
-              <Button variant="destructive" className="w-full">
+              <Button variant="destructive" className="w-full" disabled={deleting}>
                 Delete Account
               </Button>
             </DialogTrigger>
@@ -129,15 +180,16 @@ const Profile = () => {
               <DialogHeader>
                 <DialogTitle>Are you sure?</DialogTitle>
                 <DialogDescription>
-                  This action cannot be undone. This will permanently delete your account and remove all your data.
+                  This action cannot be undone. This will permanently delete your account and remove all of your
+                  data.
                 </DialogDescription>
               </DialogHeader>
               <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+                <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleting}>
                   Cancel
                 </Button>
-                <Button variant="destructive" onClick={handleDelete}>
-                  Yes, Delete My Account
+                <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+                  {deleting ? "Deleting…" : "Yes, Delete My Account"}
                 </Button>
               </div>
             </DialogContent>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,99 +6,140 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Calendar, Users, CheckCircle, XCircle, LayoutGrid } from "lucide-react";
+import { api, handleApiError } from "@/lib/api";
+
+type Reservation = {
+  id: number;
+  customer: string;
+  event: string;
+  partySize: number;
+  status: string;
+  table?: string | null;
+  reservedDate?: string;
+  assigned_table_id?: number | null;
+};
+
+type TableRow = {
+  id: number;
+  number: string;
+  capacity: number;
+  status: "available" | "occupied" | "inactive";
+};
 
 const StaffReservations = () => {
   const navigate = useNavigate();
-  const [reservations, setReservations] = useState<any[]>([]);
-  const [tables, setTables] = useState<any[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [tables, setTables] = useState<TableRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
-  useEffect(() => {
-    // Load reservations from localStorage
-    const storedReservations = localStorage.getItem('reservations');
-    if (storedReservations) {
-      setReservations(JSON.parse(storedReservations));
-    } else {
-      const defaultReservations = [
-        { id: 1, customer: "Alice Johnson", date: "2025-11-01", partySize: 4, status: "pending" },
-        { id: 2, customer: "Mike Brown", date: "2025-11-01", partySize: 2, status: "pending" },
-        { id: 3, customer: "Sarah Davis", date: "2025-11-02", partySize: 6, status: "confirmed", table: "4" }
-      ];
-      localStorage.setItem('reservations', JSON.stringify(defaultReservations));
-      setReservations(defaultReservations);
+  const loadTables = async () => {
+    try {
+      const { tables: fetched } = await api.getTables();
+      setTables(fetched ?? []);
+    } catch (error) {
+      handleApiError(error, "Failed to load table status");
     }
-
-    // Load tables from localStorage
-    const storedTables = localStorage.getItem('tables');
-    if (storedTables) {
-      setTables(JSON.parse(storedTables));
-    } else {
-      const defaultTables = [
-        { id: 1, number: "1", capacity: 2, status: "available" },
-        { id: 2, number: "2", capacity: 4, status: "available" },
-        { id: 3, number: "3", capacity: 4, status: "occupied" },
-        { id: 4, number: "4", capacity: 6, status: "available" },
-        { id: 5, number: "5", capacity: 2, status: "occupied" },
-        { id: 6, number: "6", capacity: 8, status: "available" },
-        { id: 7, number: "7", capacity: 4, status: "available" },
-        { id: 8, number: "8", capacity: 2, status: "available" },
-      ];
-      localStorage.setItem('tables', JSON.stringify(defaultTables));
-      setTables(defaultTables);
-    }
-  }, []);
-
-  const updateReservationStatus = (id: number, newStatus: string) => {
-    const updated = reservations.map(r =>
-      r.id === id ? { ...r, status: newStatus } : r
-    );
-    setReservations(updated);
-    localStorage.setItem('reservations', JSON.stringify(updated));
-    toast.success(`Reservation ${newStatus}`);
   };
 
-  const handleAutoAssign = (reservation: any) => {
-    // Find first available table that fits party size
-    const availableTable = tables.find((t: any) =>
-      t.status === 'available' && t.capacity >= reservation.partySize
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [reservationsRes, tablesRes] = await Promise.all([
+          api.getReservations(false, controller.signal),
+          api.getTables(controller.signal),
+        ]);
+        if (!controller.signal.aborted) {
+          setReservations(reservationsRes.reservations ?? []);
+          setTables(tablesRes.tables ?? []);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          handleApiError(error, "Failed to load reservations");
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadData();
+
+    return () => controller.abort();
+  }, []);
+
+  const updateReservation = (updated: Reservation) => {
+    setReservations((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+  };
+
+  const handleStatusUpdate = async (reservationId: number, status: string) => {
+    setUpdatingId(reservationId);
+    try {
+      const { reservation } = await api.updateReservationStatus(reservationId, status);
+      updateReservation(reservation);
+      toast.success(`Reservation updated to ${status}`);
+      await loadTables();
+    } catch (error) {
+      handleApiError(error, "Failed to update reservation status");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleAutoAssign = async (reservation: Reservation) => {
+    const availableTable = tables.find(
+      (table) => table.status === "available" && table.capacity >= reservation.partySize,
     );
 
     if (!availableTable) {
-      toast.error('No available tables for this party size');
+      toast.error("No available tables for this party size");
       return;
     }
 
-    // Update reservation with table assignment
-    const updatedReservations = reservations.map(r =>
-      r.id === reservation.id
-        ? { ...r, status: 'confirmed', table: availableTable.number }
-        : r
-    );
-    setReservations(updatedReservations);
-    localStorage.setItem('reservations', JSON.stringify(updatedReservations));
-
-    // Update table to occupied
-    const updatedTables = tables.map((t: any) =>
-      t.number === availableTable.number ? { ...t, status: 'occupied' } : t
-    );
-    setTables(updatedTables);
-    localStorage.setItem('tables', JSON.stringify(updatedTables));
-
-    toast.success(`Table ${availableTable.number} auto-assigned for ${reservation.customer}`);
+    try {
+      const { reservation: updated } = await api.assignReservationTable(
+        reservation.id,
+        availableTable.id,
+      );
+      updateReservation(updated);
+      toast.success(`Table ${availableTable.number} assigned for ${reservation.customer}`);
+      await loadTables();
+    } catch (error) {
+      handleApiError(error, "Failed to assign table");
+    }
   };
 
-  const handleManualAssign = (reservation: any) => {
-    navigate('/staff/table-assignment', { state: { reservation } });
+  const handleManualAssign = (reservation: Reservation) => {
+    navigate("/staff/table-assignment", { state: { reservation } });
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-yellow-500';
-      case 'confirmed': return 'bg-green-500';
-      case 'cancelled': return 'bg-red-500';
-      case 'completed': return 'bg-blue-500';
-      default: return 'bg-gray-500';
+      case "pending":
+        return "bg-yellow-500";
+      case "confirmed":
+      case "seated":
+        return "bg-green-500";
+      case "canceled":
+      case "cancelled":
+      case "no_show":
+        return "bg-red-500";
+      default:
+        return "bg-blue-500";
     }
   };
+
+  const summary = useMemo(() => {
+    return {
+      pending: reservations.filter((r) => r.status === "pending").length,
+      confirmed: reservations.filter((r) => r.status === "confirmed").length,
+      totalGuests: reservations.reduce((sum, r) => sum + r.partySize, 0),
+    };
+  }, [reservations]);
 
   return (
     <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
@@ -119,11 +160,15 @@ const StaffReservations = () => {
               <DialogTitle>Table Status Overview</DialogTitle>
             </DialogHeader>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4">
-              {tables.map((table: any) => (
+              {tables.map((table) => (
                 <Card
-                  key={String(table.id)}
+                  key={table.id}
                   className={`glass-effect border-2 ${
-                    table.status === "occupied" ? "border-red-500/50" : "border-green-500/50"
+                    table.status === "occupied"
+                      ? "border-red-500/50"
+                      : table.status === "inactive"
+                      ? "border-yellow-500/50"
+                      : "border-green-500/50"
                   }`}
                 >
                   <CardHeader className="p-4 text-center">
@@ -137,6 +182,8 @@ const StaffReservations = () => {
                       className={`text-center py-1 rounded text-xs font-semibold ${
                         table.status === "available"
                           ? "bg-green-500/20 text-green-500"
+                          : table.status === "inactive"
+                          ? "bg-yellow-500/20 text-yellow-600"
                           : "bg-red-500/20 text-red-500"
                       }`}
                     >
@@ -148,7 +195,7 @@ const StaffReservations = () => {
             </div>
           </DialogContent>
         </Dialog>
-      </div> {/* ✅ CLOSE the header container */}
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
         <Card className="glass-effect">
@@ -156,9 +203,7 @@ const StaffReservations = () => {
             <CardDescription>Pending</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">
-              {reservations.filter(r => r.status === 'pending').length}
-            </p>
+            <p className="text-3xl font-bold">{summary.pending}</p>
           </CardContent>
         </Card>
         <Card className="glass-effect">
@@ -166,14 +211,12 @@ const StaffReservations = () => {
             <CardDescription>Confirmed</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">
-              {reservations.filter(r => r.status === 'confirmed').length}
-            </p>
+            <p className="text-3xl font-bold">{summary.confirmed}</p>
           </CardContent>
         </Card>
         <Card className="glass-effect">
           <CardHeader className="pb-2">
-            <CardDescription>Today's Total</CardDescription>
+            <CardDescription>Total Reservations</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold">{reservations.length}</p>
@@ -184,92 +227,114 @@ const StaffReservations = () => {
             <CardDescription>Total Guests</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">
-              {reservations.reduce((sum, r) => sum + r.partySize, 0)}
-            </p>
+            <p className="text-3xl font-bold">{summary.totalGuests}</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="space-y-4">
-        {reservations.map((reservation: any) => (
-          <Card key={reservation.id} className="glass-effect border-2">
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                <div className="flex-1">
-                  <CardTitle className="text-base sm:text-lg">Reservation #{reservation.id}</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">{reservation.customer}</CardDescription>
-                </div>
-                <Badge className={getStatusColor(reservation.status)}>
-                  <span className="text-xs sm:text-sm">{reservation.status}</span>
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-xs sm:text-sm">
-                    <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span>{new Date(reservation.date).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs sm:text-sm">
-                    <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span>{reservation.partySize} guests</span>
-                  </div>
-                  {reservation.table && (
-                    <div className="flex items-center gap-2 text-xs sm:text-sm">
-                      <span className="font-semibold">Table: {reservation.table}</span>
-                    </div>
-                  )}
-                </div>
+      {loading ? (
+        <Card>
+          <CardContent className="p-12 text-center text-muted-foreground">
+            Loading reservations...
+          </CardContent>
+        </Card>
+      ) : reservations.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center text-muted-foreground">
+            No reservations yet.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {reservations.map((reservation) => {
+            const reservedDate = reservation.reservedDate
+              ? new Date(reservation.reservedDate)
+              : null;
+            const dateLabel = reservedDate ? reservedDate.toLocaleDateString() : "-";
+            const timeLabel = reservedDate
+              ? reservedDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : "-";
 
-                {reservation.status === 'pending' && (
-                  <div className="flex flex-col sm:flex-row gap-2">
+            return (
+              <Card key={reservation.id} className="glass-effect border-2">
+                <CardHeader>
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div className="flex-1">
+                      <CardTitle className="text-base sm:text-lg">
+                        Reservation #{reservation.id}
+                      </CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        {reservation.customer} • {reservation.event}
+                      </CardDescription>
+                      <CardDescription className="text-xs sm:text-sm flex items-center gap-1 mt-1">
+                        <Users className="h-3 w-3" />
+                        {reservation.partySize} guests
+                      </CardDescription>
+                    </div>
+                    <Badge className={getStatusColor(reservation.status)}>
+                      <span className="text-xs sm:text-sm capitalize">
+                        {reservation.status.replace("_", " ")}
+                      </span>
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs sm:text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Date</p>
+                      <p className="font-medium">{dateLabel}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Time</p>
+                      <p className="font-medium">{timeLabel}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Table</p>
+                      <p className="font-medium">{reservation.table ?? "Unassigned"}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
                     <Button
-                      onClick={() => handleAutoAssign(reservation)}
-                      className="bg-green-500 hover:bg-green-600 w-full sm:w-auto"
                       size="sm"
+                      variant="secondary"
+                      onClick={() => handleStatusUpdate(reservation.id, "confirmed")}
+                      disabled={updatingId === reservation.id}
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
-                      Auto Assign
+                      Mark Confirmed
                     </Button>
                     <Button
-                      onClick={() => handleManualAssign(reservation)}
+                      size="sm"
                       variant="outline"
-                      size="sm"
-                      className="w-full sm:w-auto"
-                    >
-                      Manual Assign
-                    </Button>
-                    <Button
-                      onClick={() => updateReservationStatus(reservation.id, 'cancelled')}
-                      variant="destructive"
-                      size="sm"
-                      className="w-full sm:w-auto"
+                      onClick={() => handleStatusUpdate(reservation.id, "canceled")}
+                      disabled={updatingId === reservation.id}
                     >
                       <XCircle className="h-4 w-4 mr-2" />
                       Cancel
                     </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => handleAutoAssign(reservation)}
+                      disabled={updatingId === reservation.id}
+                    >
+                      Auto Assign Table
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleManualAssign(reservation)}
+                      disabled={updatingId === reservation.id}
+                    >
+                      Manual Assign
+                    </Button>
                   </div>
-                )}
-
-                {reservation.status === 'confirmed' && (
-                  <Badge className="bg-green-500">
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Confirmed
-                  </Badge>
-                )}
-
-                {reservation.status === 'cancelled' && (
-                  <Badge variant="destructive">
-                    Cancelled
-                  </Badge>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

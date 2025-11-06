@@ -1,62 +1,73 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { UtensilsCrossed, Clock, CheckCircle } from "lucide-react";
+import { UtensilsCrossed, Clock, CheckCircle, Users } from "lucide-react";
+import { api, handleApiError } from "@/lib/api";
 
 type OrderItem = {
+  id: number;
   name: string;
-  price: number;
   quantity: number;
-} | string;
+  price: number;
+  line_total?: number;
+  status: string;
+};
 
 type Order = {
   id: number;
-  table: string | number;
-  time: string;
+  customer: string;
+  table: string;
   status: "pending" | "preparing" | "ready" | "completed" | "cancelled";
+  total: number;
+  createdAt: string;
+  note?: string | null;
   items: OrderItem[];
-  total?: number;
-};
-
-type TableRow = {
-  id: number | string;
-  number: string | number;
-  capacity: number;
-  status: "available" | "occupied";
 };
 
 const StaffFnB = () => {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [tables, setTables] = useState<TableRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   useEffect(() => {
-    const storedOrders = localStorage.getItem("menuOrders");
-    if (storedOrders) {
-      try {
-        const parsed = JSON.parse(storedOrders);
-        if (Array.isArray(parsed)) setOrders(parsed as Order[]);
-      } catch {}
-    }
+    const controller = new AbortController();
 
-    const storedTables = localStorage.getItem("tables");
-    if (storedTables) {
+    const loadOrders = async () => {
+      setLoading(true);
       try {
-        const parsed = JSON.parse(storedTables);
-        if (Array.isArray(parsed)) setTables(parsed as TableRow[]);
-      } catch {}
-    }
+        const { orders: fetched } = await api.getFnbOrders(false, controller.signal);
+        setOrders(fetched ?? []);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          handleApiError(error, "Failed to load F&B orders");
+          setOrders([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadOrders();
+
+    return () => controller.abort();
   }, []);
 
-  const updateOrderStatus = (orderId: number, newStatus: Order["status"]) => {
-    const updatedOrders = orders.map((o) =>
-      o.id === orderId ? { ...o, status: newStatus } : o
-    );
-    setOrders(updatedOrders);
-    localStorage.setItem("menuOrders", JSON.stringify(updatedOrders));
-    toast.success(`Order #${orderId} → ${newStatus}`);
+  const updateOrderStatus = async (orderId: number, newStatus: Order["status"]) => {
+    setUpdatingId(orderId);
+    try {
+      const { order } = await api.updateFnbOrderStatus(orderId, newStatus);
+      setOrders((prev) => prev.map((o) => (o.id === order.id ? order : o)));
+      toast.success(`Order #${orderId} → ${newStatus}`);
+    } catch (error) {
+      handleApiError(error, "Failed to update order status");
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   const getStatusColor = (status: Order["status"]) => {
@@ -90,17 +101,6 @@ const StaffFnB = () => {
       default:
         return Clock;
     }
-  };
-
-  const safeTotal = (order: Order) => {
-    if (typeof order.total === "number") return order.total;
-    if (!Array.isArray(order.items)) return 0;
-    return order.items.reduce((sum, it) => {
-      if (typeof it === "string") return sum; // no price info
-      const price = Number(it.price) || 0;
-      const qty = Number(it.quantity) || 0;
-      return sum + price * qty;
-    }, 0);
   };
 
   return (
@@ -145,100 +145,109 @@ const StaffFnB = () => {
         </Card>
         <Card className="glass-effect">
           <CardHeader className="pb-2">
-            <CardDescription>Avg. Prep Time</CardDescription>
+            <CardDescription>Total Orders</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">15m</p>
+            <p className="text-3xl font-bold">{orders.length}</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        {orders.map((order) => {
-          const StatusIcon = getStatusIcon(order.status);
-          const total = safeTotal(order);
-          return (
-            <Card key={order.id} className="glass-effect border-2">
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                  <div className="flex-1">
-                    <CardTitle className="text-base sm:text-lg">Table {order.table}</CardTitle>
-                    <CardDescription className="flex items-center gap-2 mt-1 text-xs sm:text-sm">
-                      <Clock className="h-3 w-3" />
-                      {order.time}
-                    </CardDescription>
+      {loading ? (
+        <Card>
+          <CardContent className="p-12 text-center text-muted-foreground">
+            Loading orders...
+          </CardContent>
+        </Card>
+      ) : orders.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center text-muted-foreground">
+            No orders yet.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          {orders.map((order) => {
+            const StatusIcon = getStatusIcon(order.status);
+            const createdAt = order.createdAt
+              ? new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : "-";
+            return (
+              <Card key={order.id} className="glass-effect border-2">
+                <CardHeader>
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div className="flex-1 space-y-1">
+                      <CardTitle className="text-base sm:text-lg">Table {order.table}</CardTitle>
+                      <CardDescription className="flex items-center gap-2 text-xs sm:text-sm">
+                        <Users className="h-3 w-3" />
+                        {order.customer}
+                      </CardDescription>
+                      <CardDescription className="flex items-center gap-2 text-xs sm:text-sm">
+                        <Clock className="h-3 w-3" />
+                        {createdAt}
+                      </CardDescription>
+                    </div>
+                    <Badge className={getStatusColor(order.status)}>
+                      <StatusIcon className="h-3 w-3 mr-1" />
+                      <span className="text-xs sm:text-sm capitalize">{order.status}</span>
+                    </Badge>
                   </div>
-                  <Badge className={getStatusColor(order.status)}>
-                    <StatusIcon className="h-3 w-3 mr-1" />
-                    <span className="text-xs sm:text-sm">{order.status}</span>
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs sm:text-sm font-medium mb-2">Order Items:</p>
-                    <ul className="space-y-1">
-                      {Array.isArray(order.items) && order.items.length > 0 ? (
-                        order.items.map((item, idx) => {
-                          if (typeof item === "string") {
-                            return (
-                              <li
-                                key={idx}
-                                className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2"
-                              >
-                                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                                {item}
-                              </li>
-                            );
-                          }
-                          const lineTotal = ((Number(item.price) || 0) * (Number(item.quantity) || 0)).toFixed(2);
-                          return (
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-xs sm:text-sm font-medium mb-2">Order Items:</p>
+                      <ul className="space-y-1">
+                        {order.items?.length ? (
+                          order.items.map((item) => (
                             <li
-                              key={idx}
+                              key={item.id}
                               className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2"
                             >
                               <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                              <span className="truncate">{item.name} × {item.quantity} — ฿{lineTotal}</span>
+                              <span className="truncate">
+                                {item.name} × {item.quantity} — ฿{(
+                                  item.line_total ?? item.price * item.quantity
+                                ).toFixed(2)}
+                              </span>
                             </li>
-                          );
-                        })
-                      ) : (
-                        <li className="text-xs sm:text-sm text-muted-foreground italic">
-                          No items
-                        </li>
-                      )}
-                    </ul>
-                  </div>
+                          ))
+                        ) : (
+                          <li className="text-xs sm:text-sm text-muted-foreground italic">No items</li>
+                        )}
+                      </ul>
+                    </div>
 
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t">
-                    <span className="text-base sm:text-lg font-bold">฿{total.toFixed(2)}</span>
-                    <Select
-                      value={order.status}
-                      onValueChange={(newStatus) =>
-                        updateOrderStatus(order.id, newStatus as Order["status"])
-                      }
-                    >
-                      <SelectTrigger className="w-full sm:w-44">
-                        <SelectValue placeholder="Update status…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="preparing">Preparing</SelectItem>
-                        <SelectItem value="ready">Ready</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="cancelled" className="text-red-500">
-                          Cancelled
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t">
+                      <span className="text-base sm:text-lg font-bold">฿{order.total.toFixed(2)}</span>
+                      <Select
+                        value={order.status}
+                        onValueChange={(newStatus) =>
+                          updateOrderStatus(order.id, newStatus as Order["status"])
+                        }
+                        disabled={updatingId === order.id}
+                      >
+                        <SelectTrigger className="w-full sm:w-44">
+                          <SelectValue placeholder="Update status…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="preparing">Preparing</SelectItem>
+                          <SelectItem value="ready">Ready</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="cancelled" className="text-red-500">
+                            Cancelled
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

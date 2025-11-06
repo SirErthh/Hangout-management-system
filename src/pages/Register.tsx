@@ -6,38 +6,61 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { UserPlus } from "lucide-react";
+import { api, handleApiError } from "@/lib/api";
 
-const Register = () => {
+interface RegisterProps {
+  onRegister?: (payload: { token: string; user: any }) => void;
+}
+
+const Register = ({ onRegister }: RegisterProps) => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     fname: "",
     lname: "",
     email: "",
+    phone: "",
     password: "",
   });
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleRegister = () => {
-    if (!formData.fname || !formData.email || !formData.password) {
+  const handleRegister = async () => {
+    const trimmed = {
+      fname: formData.fname.trim(),
+      lname: formData.lname.trim(),
+      email: formData.email.trim(),
+      phone: formData.phone.trim(),
+      password: formData.password,
+    };
+
+    if (!trimmed.fname || !trimmed.email || !trimmed.password || !trimmed.phone) {
       toast.error("Please fill in all required fields");
       return;
     }
 
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    const newUser = {
-      id: Date.now(),
-      ...formData,
-      pass: formData.password,
-      role: 'customer'
-    };
+    setSubmitting(true);
+    try {
+      const payload = await api.register({
+        fname: trimmed.fname,
+        lname: trimmed.lname,
+        email: trimmed.email,
+        phone: trimmed.phone,
+        password: trimmed.password,
+      });
 
-    users.push(newUser);
-    localStorage.setItem('users', JSON.stringify(users));
+      toast.success("Account created successfully!", {
+        description: "You are now signed in",
+      });
 
-    toast.success("Account created successfully!", {
-      description: "You can now login with your credentials"
-    });
-    
-    setTimeout(() => navigate('/login'), 1500);
+      if (onRegister) {
+        onRegister(payload);
+      }
+
+      navigate("/customer", { replace: true });
+    } catch (error) {
+      handleApiError(error, "Registration failed");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -79,6 +102,16 @@ const Register = () => {
             />
           </div>
           <div className="space-y-2">
+            <Label htmlFor="phone">Phone *</Label>
+            <Input
+              id="phone"
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              placeholder="Contact number"
+            />
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="password">Password *</Label>
             <Input
               id="password"
@@ -93,8 +126,9 @@ const Register = () => {
           <Button 
             className="w-full bg-gradient-primary hover:opacity-90" 
             onClick={handleRegister}
+            disabled={submitting}
           >
-            Create Account
+            {submitting ? "Creating account..." : "Create Account"}
           </Button>
           <p className="text-sm text-center text-muted-foreground">
             Already have an account?{" "}

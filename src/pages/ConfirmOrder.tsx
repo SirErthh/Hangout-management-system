@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Ticket, Calendar, Clock } from "lucide-react";
+import { api, handleApiError } from "@/lib/api";
 
 const ConfirmOrder = () => {
   const navigate = useNavigate();
@@ -20,65 +21,27 @@ const ConfirmOrder = () => {
     }
   }, [location, navigate]);
 
-  const generateTicketCodes = (quantity: number, prefix: string): string[] => {
-    const codes: string[] = [];
-    const existingOrders = JSON.parse(localStorage.getItem('ticketOrders') || '[]');
-    
-    let lastNumber = 0;
-    existingOrders.forEach((order: any) => {
-      if (order.tickets && order.tickets.length > 0) {
-        order.tickets.forEach((ticket: string) => {
-          if (ticket.startsWith(prefix)) {
-            const match = ticket.match(/\d+$/);
-            if (match) {
-              const num = parseInt(match[0]);
-              if (num > lastNumber) {
-                lastNumber = num;
-              }
-            }
-          }
-        });
-      }
-    });
-
-    for (let i = 0; i < quantity; i++) {
-      const codeNumber = (lastNumber + i + 1).toString().padStart(3, '0');
-      codes.push(`${prefix}${codeNumber}`);
+  const handleConfirm = async () => {
+    if (!orderDetails) return;
+    if (!orderDetails.eventId) {
+      toast.error("Event information is missing");
+      return;
     }
 
-    return codes;
-  };
+    try {
+      const { order } = await api.orderTickets(orderDetails.eventId, {
+        quantity: orderDetails.quantity,
+        price: orderDetails.price,
+      });
 
-  const handleConfirm = () => {
-    if (!orderDetails) return;
+      toast.success("Order Confirmed!", {
+        description: `${order.quantity}x ${order.event} - Total: ${order.total.toFixed?.(2) ?? order.total} THB`,
+      });
 
-    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-    const orders = JSON.parse(localStorage.getItem('ticketOrders') || '[]');
-    
-    const prefix = orderDetails.ticketCodePrefix || 'GEF';
-    const tickets = generateTicketCodes(orderDetails.quantity, prefix);
-
-    const newOrder = {
-      id: Date.now(),
-      userId: currentUser.id,
-      customer: `${currentUser.fname} ${currentUser.lname}`,
-      event: orderDetails.event,
-      quantity: orderDetails.quantity,
-      total: orderDetails.total,
-      tickets: tickets,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      date: orderDetails.date
-    };
-
-    orders.push(newOrder);
-    localStorage.setItem('ticketOrders', JSON.stringify(orders));
-
-    toast.success("Order Confirmed!", {
-      description: `${orderDetails.quantity}x ${orderDetails.event} - Total: ${orderDetails.total} THB (Pay at door)`
-    });
-
-    navigate('/my-orders');
+      navigate('/my-orders');
+    } catch (error) {
+      handleApiError(error, "Failed to confirm order");
+    }
   };
 
   if (!orderDetails) return null;

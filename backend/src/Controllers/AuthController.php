@@ -21,7 +21,7 @@ final class AuthController
         $password = (string)($payload['password'] ?? '');
         $phone = trim((string)($payload['phone'] ?? ''));
 
-        if ($fname === '' || $email === '' || $password === '') {
+        if ($fname === '' || $email === '' || $password === '' || $phone === '') {
             throw new RuntimeException('Missing required fields', 422);
         }
 
@@ -35,10 +35,6 @@ final class AuthController
 
         if (UserService::findByEmail($email)) {
             throw new RuntimeException('Email already registered', 409);
-        }
-
-        if ($phone === '') {
-            $phone = 'virtual-' . substr(hash('sha256', $email . microtime()), 0, 10);
         }
 
         $user = UserService::create([

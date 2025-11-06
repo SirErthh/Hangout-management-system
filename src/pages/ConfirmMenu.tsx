@@ -1,15 +1,17 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { UtensilsCrossed } from "lucide-react";
+import { api, handleApiError } from "@/lib/api";
 
 const ConfirmMenu = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [cartItems, setCartItems] = useState<any[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (location.state?.cart) {
@@ -23,28 +25,32 @@ const ConfirmMenu = () => {
     return cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   };
 
-  const handleConfirm = () => {
-    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-    const orders = JSON.parse(localStorage.getItem('menuOrders') || '[]');
+  const handleConfirm = async () => {
+    if (cartItems.length === 0) {
+      toast.error("Your cart is empty");
+      return;
+    }
 
-    const newOrder = {
-      id: Date.now(),
-      userId: currentUser.id,
-      customer: `${currentUser.fname} ${currentUser.lname}`,
-      items: cartItems,
-      total: getTotalPrice(),
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    };
+    setSubmitting(true);
+    try {
+      const payload = {
+        items: cartItems.map((item) => ({
+          id: item.id,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+      };
 
-    orders.push(newOrder);
-    localStorage.setItem('menuOrders', JSON.stringify(orders));
-
-    toast.success("Order Confirmed!", {
-      description: `Total: ${getTotalPrice()} THB`
-    });
-
-    navigate('/my-orders');
+      const { order } = await api.orderMenu(payload);
+      toast.success("Order confirmed!", {
+        description: `Total: ${order.total?.toFixed ? order.total.toFixed(2) : getTotalPrice()} THB`,
+      });
+      navigate("/my-orders", { replace: true });
+    } catch (error) {
+      handleApiError(error, "Failed to create order");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const total = getTotalPrice();
@@ -101,8 +107,9 @@ const ConfirmMenu = () => {
             <Button 
               onClick={handleConfirm}
               className="flex-1 bg-gradient-primary hover:opacity-90"
+              disabled={submitting}
             >
-              Confirm Order
+              {submitting ? "Submitting..." : "Confirm Order"}
             </Button>
           </div>
         </CardContent>
