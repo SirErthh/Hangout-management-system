@@ -24,6 +24,9 @@ type Reservation = {
   status: string;
   reservedDate?: string;
   table?: string | null;
+  tables?: string[];
+  tableIds?: number[];
+  tableCapacity?: number | null;
 };
 
 type FnbOrder = {
@@ -202,6 +205,10 @@ const MyOrders = () => {
       const timeLabel = reservedDate
         ? reservedDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
         : "-";
+      const tableLabel =
+        reservation.tables && reservation.tables.length > 0
+          ? reservation.tables.join(" + ")
+          : reservation.table;
 
       return (
         <Card key={reservation.id} className="glass-effect">
@@ -236,12 +243,12 @@ const MyOrders = () => {
                   {reservation.partySize} {reservation.partySize === 1 ? "person" : "people"}
                 </span>
               </div>
-              {reservation.table && (
+              {tableLabel ? (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Table:</span>
-                  <span className="font-medium">{reservation.table}</span>
+                  <span className="font-medium">{tableLabel}</span>
                 </div>
-              )}
+              ) : null}
             </div>
           </CardContent>
         </Card>

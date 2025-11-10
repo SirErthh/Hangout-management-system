@@ -131,7 +131,10 @@ const Menu = () => {
     const image = item.image_url;
     const isImageLike =
       image &&
-      (image.startsWith("http") || image.startsWith("data:") || image.startsWith("blob:"));
+      (image.startsWith("http") ||
+        image.startsWith("data:") ||
+        image.startsWith("blob:") ||
+        image.startsWith("/"));
 
     return (
       <Card key={item.id} className="group hover:shadow-xl transition-smooth border-2">
@@ -173,10 +176,14 @@ const Menu = () => {
                 Add
               </Button>
             )}
-            <Button className="gap-2" onClick={handleCheckout}>
-              <ShoppingCart className="h-4 w-4" />
-              Checkout
-            </Button>
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">
+                {qty > 0 ? "In Cart" : "Price"}
+              </p>
+              <p className="text-lg font-semibold">
+                ฿{(qty > 0 ? qty : 1) * item.price}
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

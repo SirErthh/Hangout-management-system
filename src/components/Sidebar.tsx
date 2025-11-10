@@ -1,3 +1,4 @@
+import { ComponentType } from "react";
 import { NavLink } from "react-router-dom";
 import { 
   Home, 
@@ -15,28 +16,35 @@ interface SidebarProps {
   role: string;
 }
 
+type LinkConfig = {
+  to: string;
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  end?: boolean;
+};
+
 const Sidebar = ({ role }: SidebarProps) => {
-  const customerLinks = [
-    { to: "/customer", icon: Home, label: "Home" },
-    { to: "/events", icon: Calendar, label: "Events" },
-    { to: "/reserve", icon: BookOpen, label: "Reserve Table" },
-    { to: "/menu", icon: UtensilsCrossed, label: "Menu" },
-    { to: "/my-orders", icon: ShoppingBag, label: "My Orders" },
+  const customerLinks: LinkConfig[] = [
+    { to: "/customer", icon: Home, label: "Home", end: true },
+    { to: "/events", icon: Calendar, label: "Events", end: true },
+    { to: "/reserve", icon: BookOpen, label: "Reserve Table", end: true },
+    { to: "/menu", icon: UtensilsCrossed, label: "Menu", end: true },
+    { to: "/my-orders", icon: ShoppingBag, label: "My Orders", end: true },
   ];
 
-  const staffLinks = [
-    { to: "/staff", icon: LayoutDashboard, label: "Dashboard" },
-    { to: "/staff/tickets", icon: Ticket, label: "Ticket Orders" },
-    { to: "/staff/reservations", icon: BookOpen, label: "Reservations" },
-    { to: "/staff/fnb", icon: UtensilsCrossed, label: "F&B / Kitchen" },
+  const staffLinks: LinkConfig[] = [
+    { to: "/staff", icon: LayoutDashboard, label: "Dashboard", end: true },
+    { to: "/staff/tickets", icon: Ticket, label: "Ticket Orders", end: true },
+    { to: "/staff/reservations", icon: BookOpen, label: "Reservations", end: true },
+    { to: "/staff/fnb", icon: UtensilsCrossed, label: "F&B / Kitchen", end: true },
   ];
 
-  const adminLinks = [
-    { to: "/admin", icon: LayoutDashboard, label: "Dashboard" },
-    { to: "/admin/users", icon: Users, label: "Users & Roles" },
-    { to: "/admin/events", icon: Calendar, label: "Events" },
-    { to: "/admin/menu", icon: UtensilsCrossed, label: "F&B Menu" },
-    { to: "/admin/closure", icon: DollarSign, label: "Day Closure" },
+  const adminLinks: LinkConfig[] = [
+    { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
+    { to: "/admin/users", icon: Users, label: "Users & Roles", end: true },
+    { to: "/admin/events", icon: Calendar, label: "Events", end: true },
+    { to: "/admin/menu", icon: UtensilsCrossed, label: "F&B Menu", end: true },
+    { to: "/admin/closure", icon: DollarSign, label: "Day Closure", end: true },
   ];
 
   let links = customerLinks;
@@ -52,6 +60,7 @@ const Sidebar = ({ role }: SidebarProps) => {
             <NavLink
               key={link.to}
               to={link.to}
+              end={link.end}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl transition-smooth ${
                   isActive

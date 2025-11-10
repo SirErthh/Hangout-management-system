@@ -15,6 +15,9 @@ type Reservation = {
   partySize: number;
   status: string;
   table?: string | null;
+  tables?: string[];
+  tableIds?: number[];
+  tableCapacity?: number | null;
   reservedDate?: string;
   assigned_table_id?: number | null;
 };
@@ -90,26 +93,58 @@ const StaffReservations = () => {
     }
   };
 
-  const handleAutoAssign = async (reservation: Reservation) => {
-    const availableTable = tables.find(
-      (table) => table.status === "available" && table.capacity >= reservation.partySize,
-    );
+  const getTablePosition = (label: string) => {
+    const match = label.match(/(\d+)/);
+    return match ? parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER;
+  };
 
-    if (!availableTable) {
-      toast.error("No available tables for this party size");
+  const handleAutoAssign = async (reservation: Reservation) => {
+    const availableTables = tables
+      .filter((table) => table.status === "available")
+      .sort((a, b) => getTablePosition(a.number) - getTablePosition(b.number));
+
+    let chosen: TableRow[] | null = null;
+
+    outer: for (let i = 0; i < availableTables.length; i++) {
+      let total = 0;
+      const combo: TableRow[] = [];
+      let prevPosition: number | null = null;
+
+      for (let j = i; j < availableTables.length; j++) {
+        const current = availableTables[j];
+        const position = getTablePosition(current.number);
+        if (prevPosition !== null && position - prevPosition !== 1) {
+          break;
+        }
+
+        combo.push(current);
+        total += current.capacity;
+        prevPosition = position;
+
+        if (total >= reservation.partySize) {
+          chosen = combo;
+          break outer;
+        }
+      }
+    }
+
+    if (!chosen) {
+      toast.error("No adjacent table combination can cover this party size");
       return;
     }
 
     try {
       const { reservation: updated } = await api.assignReservationTable(
         reservation.id,
-        availableTable.id,
+        chosen.map((table) => table.id),
       );
       updateReservation(updated);
-      toast.success(`Table ${availableTable.number} assigned for ${reservation.customer}`);
+      toast.success(
+        `Assigned ${chosen.map((table) => table.number).join(" + ")} to ${reservation.customer}`,
+      );
       await loadTables();
     } catch (error) {
-      handleApiError(error, "Failed to assign table");
+      handleApiError(error, "Failed to assign tables");
     }
   };
 
@@ -265,6 +300,7 @@ const StaffReservations = () => {
               normalizedStatus === "no_show";
             const canAssignTable = !(isConfirmed || isCancelled) && !reservation.assigned_table_id;
             const canMarkConfirmed = !(isConfirmed || isCancelled);
+            const canSeatGuests = normalizedStatus === "confirmed";
 
             return (
               <Card key={reservation.id} className="glass-effect border-2">
@@ -301,7 +337,11 @@ const StaffReservations = () => {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Table</p>
-                      <p className="font-medium">{reservation.table ?? "Unassigned"}</p>
+                      <p className="font-medium">
+                        {reservation.tables && reservation.tables.length > 0
+                          ? reservation.tables.join(" + ")
+                          : reservation.table ?? "Unassigned"}
+                      </p>
                     </div>
                   </div>
 
@@ -315,6 +355,17 @@ const StaffReservations = () => {
                       >
                         <CheckCircle className="h-4 w-4 mr-2" />
                         Mark Confirmed
+                      </Button>
+                    )}
+                    {canSeatGuests && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => handleStatusUpdate(reservation.id, "seated")}
+                        disabled={updatingId === reservation.id}
+                      >
+                        <Users className="h-4 w-4 mr-2" />
+                        Seat Guests
                       </Button>
                     )}
                     {!isCancelled && (

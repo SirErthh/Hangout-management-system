@@ -1,9 +1,16 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Calendar, Minus, Plus } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Calendar, Info, Minus, Plus } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
 
 type EventItem = {
@@ -13,6 +20,8 @@ type EventItem = {
   date?: string | null;
   price: number;
   ticketCodePrefix?: string;
+  description?: string | null;
+  artist?: string | null;
 };
 
 const Events = () => {
@@ -20,14 +29,17 @@ const Events = () => {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
+  const [infoEvent, setInfoEvent] = useState<EventItem | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    const loadEvents = async () => {
+  const fetchEvents = useCallback(
+    async (signal?: AbortSignal) => {
       setLoading(true);
       try {
-        const { events: fetched } = await api.getEvents(controller.signal);
+        const { events: fetched = [] } = await api.getEvents(signal);
+        if (signal?.aborted) {
+          return;
+        }
         setEvents(fetched);
         setQuantities((prev) => {
           const next: Record<number, number> = {};
@@ -37,21 +49,32 @@ const Events = () => {
           return next;
         });
       } catch (error) {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           handleApiError(error, "Failed to load events");
           setEvents([]);
         }
       } finally {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           setLoading(false);
         }
       }
-    };
+    },
+    [],
+  );
 
-    loadEvents();
-
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchEvents(controller.signal);
     return () => controller.abort();
-  }, []);
+  }, [fetchEvents]);
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      fetchEvents();
+    };
+    window.addEventListener("events-updated", handleRefresh);
+    return () => window.removeEventListener("events-updated", handleRefresh);
+  }, [fetchEvents]);
 
   const updateQuantity = (id: number, delta: number) => {
     setQuantities((prev) => ({
@@ -77,17 +100,28 @@ const Events = () => {
     });
   };
 
+  const openInfo = (event: EventItem) => {
+    setInfoEvent(event);
+    setInfoOpen(true);
+  };
+
+  const closeInfo = () => {
+    setInfoOpen(false);
+    setInfoEvent(null);
+  };
+
   const renderImage = (event: EventItem, size: "sm" | "lg") => {
     const isImageLike =
       typeof event.image_url === "string" &&
       (event.image_url.startsWith("http") ||
         event.image_url.startsWith("data:") ||
-        event.image_url.startsWith("blob:"));
+        event.image_url.startsWith("blob:") ||
+        event.image_url.startsWith("/"));
 
     const baseClasses =
       size === "sm"
-        ? "w-20 h-16 rounded-lg flex-shrink-0"
-        : "w-24 h-16 rounded-lg";
+        ? "w-24 h-20 rounded-lg flex-shrink-0"
+        : "w-40 h-28 rounded-lg flex-shrink-0";
 
     if (!event.image_url) {
       return (
@@ -157,7 +191,7 @@ const Events = () => {
                       <p className="text-lg font-bold mt-1">฿{event.price}</p>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <Button
                         size="icon"
@@ -187,13 +221,24 @@ const Events = () => {
                         <Plus className="h-3 w-3" />
                       </Button>
                     </div>
-                    <Button
-                      onClick={() => handleConfirmOrder(event)}
-                      className="bg-gradient-primary hover:opacity-90 flex-1"
-                      size="sm"
-                    >
-                      Order
-                    </Button>
+                    <div className="flex items-center gap-2 flex-1 justify-end">
+                      <Button
+                        onClick={() => handleConfirmOrder(event)}
+                        className="bg-gradient-primary hover:opacity-90 flex-1"
+                        size="sm"
+                      >
+                        Order
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-1"
+                        onClick={() => openInfo(event)}
+                      >
+                        <Info className="h-4 w-4" />
+                        Info
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -275,12 +320,18 @@ const Events = () => {
                         </div>
                       </td>
                       <td className="p-4">
-                        <Button
-                          onClick={() => handleConfirmOrder(event)}
-                          className="bg-gradient-primary hover:opacity-90"
-                        >
-                          Order
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            onClick={() => handleConfirmOrder(event)}
+                            className="bg-gradient-primary hover:opacity-90"
+                          >
+                            Order
+                          </Button>
+                          <Button variant="outline" onClick={() => openInfo(event)}>
+                            <Info className="h-4 w-4 mr-1" />
+                            Info
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -290,6 +341,72 @@ const Events = () => {
           </div>
         </CardContent>
       </Card>
+      <Dialog open={infoOpen} onOpenChange={(open) => (open ? setInfoOpen(true) : closeInfo())}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{infoEvent?.name ?? "Event details"}</DialogTitle>
+            <DialogDescription>
+              Take a closer look at the event before completing your booking.
+            </DialogDescription>
+          </DialogHeader>
+          {infoEvent && (
+            <div className="space-y-4">
+              <div className="rounded-lg overflow-hidden border bg-muted/40">
+                {infoEvent.image_url ? (
+                  <img
+                    src={infoEvent.image_url}
+                    alt={infoEvent.name}
+                    className="w-full h-80 object-cover"
+                  />
+                ) : (
+                  <div className="h-80 flex items-center justify-center bg-muted">
+                    <Calendar className="h-10 w-10 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Date</p>
+                  <p className="font-semibold">
+                    {infoEvent.date ? new Date(infoEvent.date).toLocaleString() : "TBA"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Price</p>
+                  <p className="font-semibold">฿{infoEvent.price}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Ticket Code Prefix</p>
+                  <p className="font-semibold">{infoEvent.ticketCodePrefix ?? "HAN"}</p>
+                </div>
+                {infoEvent.artist && (
+                  <div>
+                    <p className="text-muted-foreground">Artist</p>
+                    <p className="font-semibold">{infoEvent.artist}</p>
+                  </div>
+                )}
+              </div>
+              <div className="text-sm">
+                <p className="text-muted-foreground mb-1">Description</p>
+                <p>{infoEvent.description || "No additional details provided."}</p>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={closeInfo}>
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    closeInfo();
+                    handleConfirmOrder(infoEvent);
+                  }}
+                >
+                  Order Tickets
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

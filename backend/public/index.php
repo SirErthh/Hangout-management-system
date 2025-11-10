@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+ini_set('log_errors', 'On');
+ini_set('error_log', __DIR__ . '/../storage/logs/app-error.log');
+
 require dirname(__DIR__) . '/bootstrap.php';
 
 $router = require BASE_PATH . '/routes/api.php';

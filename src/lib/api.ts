@@ -2,7 +2,7 @@ import { toast } from "sonner";
 
 const DEFAULT_BASE_URL = "";
 
-const API_BASE_URL = (
+export const API_BASE_URL = (
   import.meta.env.VITE_API_URL as string | undefined
 )?.replace(/\/+$/, "") ?? DEFAULT_BASE_URL;
 
@@ -198,6 +198,12 @@ export const api = {
       method: "POST",
       auth: true,
     }),
+  uploadImage: (dataUrl: string) =>
+    apiRequest<{ url: string; path: string }>("/api/uploads", {
+      method: "POST",
+      body: { dataUrl },
+      auth: true,
+    }),
   createReservation: (payload: { date: string; partySize: number; note?: string; event_id?: number }) =>
     apiRequest<{ reservation: any }>("/api/reservations", {
       method: "POST",
@@ -215,10 +221,10 @@ export const api = {
       body: { status },
       auth: true,
     }),
-  assignReservationTable: (id: number, tableId: number) =>
+  assignReservationTable: (id: number, tableIds: number | number[]) =>
     apiRequest<{ reservation: any }>(`/api/reservations/${id}/assign-table`, {
       method: "POST",
-      body: { table_id: tableId },
+      body: Array.isArray(tableIds) ? { table_ids: tableIds } : { table_id: tableIds },
       auth: true,
     }),
   getTables: (signal?: AbortSignal) =>

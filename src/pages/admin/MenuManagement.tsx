@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Plus, Edit, Trash2, Eye, EyeOff } from "lucide-react";
@@ -34,6 +44,7 @@ const MenuManagement = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     type: "food" as "food" | "drink",
@@ -41,31 +52,37 @@ const MenuManagement = () => {
     imageUrl: "",
     description: "",
   });
+  const [imagePreview, setImagePreview] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<MenuItem | null>(null);
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    const load = async () => {
+  const loadMenuItems = useCallback(
+    async (signal?: AbortSignal) => {
       setLoading(true);
       try {
-        const { items } = await api.getMenuItems(controller.signal);
-        setMenuItems(items || []);
+        const { items } = await api.getMenuItems(signal);
+        if (!signal?.aborted) {
+          setMenuItems(items || []);
+        }
       } catch (error) {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           handleApiError(error, "Failed to load menu items");
           setMenuItems([]);
         }
       } finally {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           setLoading(false);
         }
       }
-    };
+    },
+    [],
+  );
 
-    load();
-
+  useEffect(() => {
+    const controller = new AbortController();
+    loadMenuItems(controller.signal);
     return () => controller.abort();
-  }, []);
+  }, [loadMenuItems]);
 
   const notifyMenuUpdated = () => {
     window.dispatchEvent(new Event("menu-updated"));
@@ -80,6 +97,7 @@ const MenuManagement = () => {
       description: "",
     });
     setEditingItem(null);
+    setImagePreview("");
   };
 
   const openCreateDialog = () => {
@@ -96,10 +114,29 @@ const MenuManagement = () => {
       imageUrl: item.image_url ?? "",
       description: item.description ?? "",
     });
+    setImagePreview(resolvePreview(item.image_url));
     setDialogOpen(true);
   };
 
+  const resolvePreview = (value?: string | null) => {
+    if (!value) return "";
+    if (
+      value.startsWith("http") ||
+      value.startsWith("https://") ||
+      value.startsWith("data:") ||
+      value.startsWith("blob:") ||
+      value.startsWith("/")
+    ) {
+      return value;
+    }
+    return "";
+  };
+
   const handleFileChange = (file?: File) => {
+    if (uploadingImage) {
+      toast.error("Please wait for the current upload to finish");
+      return;
+    }
     if (!file) return;
     if (file.size > MAX_FILE_SIZE) {
       toast.error("File size exceeds 2MB limit");
@@ -108,10 +145,42 @@ const MenuManagement = () => {
 
     const reader = new FileReader();
     reader.onload = () => {
-      setFormData((prev) => ({ ...prev, imageUrl: (reader.result as string) || "" }));
+      const dataUrl = (reader.result as string) || "";
+      if (!dataUrl) {
+        toast.error("Failed to read image");
+        return;
+      }
+
+      setUploadingImage(true);
+      api
+        .uploadImage(dataUrl)
+        .then(({ path, url }) => {
+          setFormData((prev) => ({ ...prev, imageUrl: path }));
+          setImagePreview(url || path);
+          toast.success("Image uploaded");
+        })
+        .catch((error) => {
+          handleApiError(error, "Failed to upload image");
+        })
+        .finally(() => setUploadingImage(false));
     };
     reader.readAsDataURL(file);
   };
+
+  useEffect(() => {
+    if (!dialogOpen) {
+      resetForm();
+      return;
+    }
+  }, [dialogOpen]);
+
+  useEffect(() => {
+    if (!dialogOpen) {
+      return;
+    }
+    const nextPreview = resolvePreview(formData.imageUrl);
+    setImagePreview(nextPreview);
+  }, [dialogOpen, formData.imageUrl]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -119,6 +188,16 @@ const MenuManagement = () => {
     const priceNum = Number(formData.price);
     if (!formData.name.trim() || isNaN(priceNum) || priceNum < 0) {
       toast.error("Please provide a valid name and price");
+      return;
+    }
+
+    if (formData.imageUrl && formData.imageUrl.startsWith("data:")) {
+      toast.error("Please upload the selected image before saving");
+      return;
+    }
+
+    if (uploadingImage) {
+      toast.error("Please wait for the image upload to finish");
       return;
     }
 
@@ -134,16 +213,13 @@ const MenuManagement = () => {
     setSaving(true);
     try {
       if (editingItem) {
-        const { item } = await api.updateMenuItem(editingItem.id, payload);
-        setMenuItems((prev) =>
-          prev.map((it) => (it.id === item.id ? item : it)),
-        );
+        await api.updateMenuItem(editingItem.id, payload);
         toast.success("Menu item updated successfully!");
       } else {
-        const { item } = await api.createMenuItem(payload);
-        setMenuItems((prev) => [item, ...prev]);
+        await api.createMenuItem(payload);
         toast.success("Menu item created successfully!");
       }
+      await loadMenuItems();
       notifyMenuUpdated();
       setDialogOpen(false);
       resetForm();
@@ -154,29 +230,37 @@ const MenuManagement = () => {
     }
   };
 
-  const handleDelete = async (item: MenuItem) => {
-    if (!confirm(`Delete "${item.name}"?`)) {
+  const handleDelete = (item: MenuItem) => {
+    setDeleteTarget(item);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) {
       return;
     }
 
+    setDeleting(true);
     try {
-      await api.deleteMenuItem(item.id);
-      setMenuItems((prev) => prev.filter((m) => m.id !== item.id));
+      await api.deleteMenuItem(deleteTarget.id);
+      await loadMenuItems();
       toast.success("Menu item deleted successfully!");
       notifyMenuUpdated();
+      setDeleteTarget(null);
     } catch (error) {
       handleApiError(error, "Failed to delete menu item");
+    } finally {
+      setDeleting(false);
     }
   };
 
   const toggleActive = async (item: MenuItem) => {
     try {
-      const { item: updated } = await api.updateMenuItem(item.id, {
+      await api.updateMenuItem(item.id, {
         ...item,
         image_url: item.image_url,
         is_active: !item.is_active,
       });
-      setMenuItems((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+      await loadMenuItems();
       toast.success("Menu item visibility updated!");
       notifyMenuUpdated();
     } catch (error) {
@@ -187,10 +271,11 @@ const MenuManagement = () => {
   const renderThumb = (urlOrEmoji: string | undefined, name: string, large = false) => {
     const isImage =
       typeof urlOrEmoji === "string" &&
-      (urlOrEmoji.startsWith("http") ||
+      (urlOrEmoji.startsWith("http://") ||
         urlOrEmoji.startsWith("https://") ||
         urlOrEmoji.startsWith("data:") ||
-        urlOrEmoji.startsWith("blob:"));
+        urlOrEmoji.startsWith("blob:") ||
+        urlOrEmoji.startsWith("/"));
     const height = large ? "h-40" : "h-32";
     if (!urlOrEmoji) {
       return (
@@ -220,7 +305,8 @@ const MenuManagement = () => {
   }, [menuItems]);
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
+    <>
+      <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold mb-2">F&B Menu Management</h1>
@@ -304,15 +390,23 @@ const MenuManagement = () => {
                   onChange={(e) => setFormData((prev) => ({ ...prev, imageUrl: e.target.value }))}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Supports emoji, external URL, data URI, or uploaded image (max 2MB).
+                  Supports emoji, external image URLs, or upload (stored under 2MB).
                 </p>
+                {imagePreview && (
+                  <div className="rounded-lg border overflow-hidden">
+                    <img src={imagePreview} alt="Preview" className="h-40 w-full object-cover" />
+                  </div>
+                )}
+                {uploadingImage && (
+                  <p className="text-xs text-muted-foreground">Uploading image...</p>
+                )}
               </div>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={saving}>
-                  {saving ? "Saving..." : editingItem ? "Update" : "Create"}
+                <Button type="submit" disabled={saving || uploadingImage}>
+                  {saving ? "Saving..." : uploadingImage ? "Uploading..." : editingItem ? "Update" : "Create"}
                 </Button>
               </div>
             </form>
@@ -385,7 +479,28 @@ const MenuManagement = () => {
           ))}
         </div>
       )}
-    </div>
+      </div>
+
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete menu item</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete{" "}
+              <span className="font-semibold">{deleteTarget?.name}</span>. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting} onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} disabled={deleting}>
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };
 

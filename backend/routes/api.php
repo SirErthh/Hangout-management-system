@@ -11,6 +11,7 @@ use App\Controllers\FnbController;
 use App\Controllers\DayClosureController;
 use App\Controllers\ProfileController;
 use App\Controllers\UserController;
+use App\Controllers\UploadController;
 use App\Support\Router;
 
 $router = new Router();
@@ -24,6 +25,7 @@ $fnb = new FnbController();
 $dayClosure = new DayClosureController();
 $profile = new ProfileController();
 $users = new UserController();
+$uploads = new UploadController();
 
 $router->post('/api/auth/register', [$auth, 'register']);
 $router->post('/api/auth/login', [$auth, 'login']);
@@ -64,5 +66,6 @@ $router->post('/api/day-closure', [$dayClosure, 'store'], ['auth']);
 
 $router->get('/api/users', [$users, 'index'], ['auth']);
 $router->patch('/api/users/{id}/role', [$users, 'updateRole'], ['auth']);
+$router->post('/api/uploads', [$uploads, 'store'], ['auth']);
 
 return $router;

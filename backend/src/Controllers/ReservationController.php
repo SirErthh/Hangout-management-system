@@ -78,7 +78,7 @@ final class ReservationController
             throw new RuntimeException('Status is required', 422);
         }
 
-        $reservation = ReservationService::updateStatus($id, $status);
+        $reservation = ReservationService::updateStatus($id, $status, $request->user());
         return ['reservation' => $reservation];
     }
 
@@ -86,12 +86,21 @@ final class ReservationController
     {
         $this->ensureStaff($request);
         $reservationId = (int)$request->param('id');
-        $tableId = (int)($request->input('table_id') ?? 0);
-        if ($tableId === 0) {
-            throw new RuntimeException('Table id is required', 422);
+        $tableIds = $request->input('table_ids');
+
+        if (is_array($tableIds)) {
+            $tableIds = array_map('intval', $tableIds);
+            $tableIds = array_values(array_filter($tableIds, static fn($id) => $id > 0));
+        } else {
+            $single = (int)($request->input('table_id') ?? 0);
+            $tableIds = $single > 0 ? [$single] : [];
         }
 
-        $reservation = ReservationService::assignTable($reservationId, $tableId);
+        if (empty($tableIds)) {
+            throw new RuntimeException('Table selection is required', 422);
+        }
+
+        $reservation = ReservationService::assignTables($reservationId, $tableIds, $request->user());
         return ['reservation' => $reservation];
     }
 

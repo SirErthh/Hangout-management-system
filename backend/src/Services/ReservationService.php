@@ -9,6 +9,8 @@ use RuntimeException;
 
 final class ReservationService
 {
+    private const ACTIVE_STATUSES = ['pending', 'confirmed', 'seated'];
+
     public static function create(array $data): array
     {
         $pdo = Database::connection();
@@ -90,53 +92,122 @@ final class ReservationService
 
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!$rows) {
+            return [];
+        }
 
-        return array_map(static fn(array $row) => self::transform($row), $stmt->fetchAll(PDO::FETCH_ASSOC));
+        $rows = self::attachTablesToRows($rows);
+
+        return array_map(static fn(array $row) => self::transform($row), $rows);
     }
 
-    public static function updateStatus(int $id, string $status): array
+    public static function updateStatus(int $id, string $status, ?array $actor = null): array
     {
         $allowed = ['pending', 'confirmed', 'seated', 'no_show', 'canceled'];
         if (!in_array($status, $allowed, true)) {
             throw new RuntimeException('Invalid status value', 422);
         }
 
-        $stmt = Database::connection()->prepare(
-            'UPDATE TABLE_RESERVATION SET status = :status WHERE id = :id'
-        );
-        $stmt->execute(['status' => $status, 'id' => $id]);
+        $pdo = Database::connection();
+        $currentStatus = self::fetchReservationStatus($pdo, $id);
+        if ($currentStatus === null) {
+            throw new RuntimeException('Reservation not found', 404);
+        }
+
+        self::setAppUserContext($pdo, $actor['id'] ?? null);
+
+        $pdo->beginTransaction();
+        try {
+            $update = $pdo->prepare(
+                'UPDATE TABLE_RESERVATION SET status = :status WHERE id = :id'
+            );
+            $update->execute(['status' => $status, 'id' => $id]);
+
+            if ($status === 'seated' && $currentStatus !== 'seated') {
+                self::callStartSession($pdo, $id, $actor['id'] ?? null);
+            }
+
+            if (in_array($status, ['completed', 'no_show'], true) && $currentStatus !== $status) {
+                self::callEndSession($pdo, $id, $status, $actor['id'] ?? null);
+            }
+
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
 
         return self::find($id) ?? [];
     }
 
-    public static function assignTable(int $reservationId, int $tableId): array
+    public static function assignTable(int $reservationId, int $tableId, ?array $actor = null): array
     {
+        return self::assignTables($reservationId, [$tableId], $actor);
+    }
+
+    public static function assignTables(int $reservationId, array $tableIds, ?array $actor = null): array
+    {
+        $filtered = array_values(array_unique(array_map('intval', $tableIds)));
+        $filtered = array_filter($filtered, static fn(int $id) => $id > 0);
+        if (empty($filtered)) {
+            throw new RuntimeException('Table selection is required', 422);
+        }
+
         $pdo = Database::connection();
+        self::ensurePivotTable($pdo);
+        self::setAppUserContext($pdo, $actor['id'] ?? null);
+        $pdo->beginTransaction();
 
-        $tableStmt = $pdo->prepare('SELECT id, capacity FROM VENUETABLE WHERE id = :id AND is_active = 1');
-        $tableStmt->execute(['id' => $tableId]);
-        $table = $tableStmt->fetch(PDO::FETCH_ASSOC);
-        if (!$table) {
-            throw new RuntimeException('Table not available', 404);
+        try {
+            $reservationStmt = $pdo->prepare('SELECT partysize FROM TABLE_RESERVATION WHERE id = :id');
+            $reservationStmt->execute(['id' => $reservationId]);
+            $reservation = $reservationStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$reservation) {
+                throw new RuntimeException('Reservation not found', 404);
+            }
+
+            $orderMap = self::tableOrderMap($pdo);
+            $tables = self::fetchTables($pdo, $filtered, $orderMap);
+            if (count($tables) !== count($filtered)) {
+                throw new RuntimeException('One or more tables are not available', 404);
+            }
+
+            self::ensureTablesAreActive($tables);
+            self::ensureTablesAdjacent($tables);
+            self::ensureCapacitySufficient($tables, (int)$reservation['partysize']);
+            self::ensureTablesFree($pdo, $filtered, $reservationId);
+
+            $primaryTableId = $tables[0]['id'];
+
+            $update = $pdo->prepare(
+                'UPDATE TABLE_RESERVATION
+                 SET assigned_table_id = :table_id, status = "confirmed"
+                 WHERE id = :id'
+            );
+            $update->execute(['table_id' => $primaryTableId, 'id' => $reservationId]);
+
+            $pdo->prepare('DELETE FROM TABLE_RESERVATION_TABLE WHERE reservation_id = :id')
+                ->execute(['id' => $reservationId]);
+
+            $insert = $pdo->prepare(
+                'INSERT INTO TABLE_RESERVATION_TABLE (reservation_id, table_id, table_order)
+                 VALUES (:reservation_id, :table_id, :table_order)'
+            );
+
+            foreach ($tables as $index => $table) {
+                $insert->execute([
+                    'reservation_id' => $reservationId,
+                    'table_id' => $table['id'],
+                    'table_order' => $index,
+                ]);
+            }
+
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
         }
-
-        $reservationStmt = $pdo->prepare('SELECT partysize FROM TABLE_RESERVATION WHERE id = :id');
-        $reservationStmt->execute(['id' => $reservationId]);
-        $reservation = $reservationStmt->fetch(PDO::FETCH_ASSOC);
-        if (!$reservation) {
-            throw new RuntimeException('Reservation not found', 404);
-        }
-
-        if ((int)$reservation['partysize'] > (int)$table['capacity']) {
-            throw new RuntimeException('Table capacity is insufficient', 422);
-        }
-
-        $update = $pdo->prepare(
-            'UPDATE TABLE_RESERVATION
-             SET assigned_table_id = :table_id, status = "confirmed"
-             WHERE id = :id'
-        );
-        $update->execute(['table_id' => $tableId, 'id' => $reservationId]);
 
         return self::find($reservationId) ?? [];
     }
@@ -166,12 +237,22 @@ final class ReservationService
         );
         $stmt->execute(['id' => $id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return null;
+        }
 
-        return $row ? self::transform($row) : null;
+        $rows = self::attachTablesToRows([$row]);
+
+        return self::transform($rows[0]);
     }
 
     private static function transform(array $row): array
     {
+        $tablesData = $row['tablesData'] ?? [];
+        $tableNames = array_map(static fn(array $table) => $table['number'], $tablesData);
+        $tableIds = array_map(static fn(array $table) => $table['id'], $tablesData);
+        $tablesCapacity = array_sum(array_map(static fn(array $table) => $table['capacity'], $tablesData));
+
         return [
             'id' => (int)$row['id'],
             'user_id' => (int)$row['user_id'],
@@ -182,10 +263,214 @@ final class ReservationService
             'reservedDate' => date('c', strtotime($row['reserved_date'])),
             'status' => $row['status'],
             'note' => $row['note'],
-            'table' => $row['table_name'],
-            'tableCapacity' => $row['table_capacity'] !== null ? (int)$row['table_capacity'] : null,
+            'table' => $tableNames ? implode(' + ', $tableNames) : $row['table_name'],
+            'tables' => $tableNames,
+            'tableIds' => $tableIds,
+            'tableCapacity' => $tablesCapacity > 0
+                ? $tablesCapacity
+                : ($row['table_capacity'] !== null ? (int)$row['table_capacity'] : null),
             'assigned_table_id' => $row['assigned_table_id'] ? (int)$row['assigned_table_id'] : null,
             'createdAt' => date('c', strtotime($row['created_at'])),
         ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private static function attachTablesToRows(array $rows): array
+    {
+        if (!$rows) {
+            return $rows;
+        }
+
+        $ids = array_map(static fn(array $row) => (int)$row['id'], $rows);
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+        $stmt = Database::connection()->prepare(
+            'SELECT rt.reservation_id,
+                    t.id AS table_id,
+                    t.table_name,
+                    t.capacity
+             FROM TABLE_RESERVATION_TABLE rt
+             INNER JOIN VENUETABLE t ON t.id = rt.table_id
+             WHERE rt.reservation_id IN (' . $placeholders . ')
+             ORDER BY rt.table_order ASC, t.table_name ASC'
+        );
+        $stmt->execute($ids);
+
+        $map = [];
+        while ($tableRow = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $reservationId = (int)$tableRow['reservation_id'];
+            $map[$reservationId] ??= [];
+            $map[$reservationId][] = [
+                'id' => (int)$tableRow['table_id'],
+                'number' => $tableRow['table_name'],
+                'capacity' => (int)$tableRow['capacity'],
+            ];
+        }
+
+        foreach ($rows as &$row) {
+            $id = (int)$row['id'];
+            $row['tablesData'] = $map[$id] ?? [];
+        }
+
+        return $rows;
+    }
+
+    private static function tableOrderMap(PDO $pdo): array
+    {
+        $stmt = $pdo->query('SELECT id FROM VENUETABLE ORDER BY table_name ASC');
+        $order = [];
+        $index = 0;
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $order[(int)$row['id']] = $index++;
+        }
+        return $order;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private static function fetchTables(PDO $pdo, array $tableIds, array $orderMap): array
+    {
+        $placeholders = implode(',', array_fill(0, count($tableIds), '?'));
+        $stmt = $pdo->prepare(
+            'SELECT id, table_name, capacity, is_active
+             FROM VENUETABLE
+             WHERE id IN (' . $placeholders . ')'
+        );
+        $stmt->execute($tableIds);
+        $tables = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_map(
+            static function (array $table) use ($orderMap): array {
+                $table['id'] = (int)$table['id'];
+                $table['capacity'] = (int)$table['capacity'];
+                $table['is_active'] = (int)$table['is_active'];
+                $table['order'] = $orderMap[$table['id']] ?? PHP_INT_MAX;
+                return $table;
+            },
+            $tables
+        );
+    }
+
+    private static function ensureTablesAreActive(array $tables): void
+    {
+        foreach ($tables as $table) {
+            if ((int)$table['is_active'] !== 1) {
+                throw new RuntimeException('Selected table is not active', 422);
+            }
+        }
+    }
+
+    private static function ensureTablesAdjacent(array &$tables): void
+    {
+        if (count($tables) <= 1) {
+            $tables = array_values($tables);
+            return;
+        }
+
+        usort($tables, static fn(array $a, array $b) => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
+
+        for ($i = 1, $max = count($tables); $i < $max; $i++) {
+            $current = $tables[$i]['order'] ?? null;
+            $previous = $tables[$i - 1]['order'] ?? null;
+            if ($current === null || $previous === null) {
+                continue;
+            }
+            if ($current - $previous !== 1) {
+                throw new RuntimeException('Selected tables must be next to each other', 422);
+            }
+        }
+    }
+
+    private static function ensureCapacitySufficient(array $tables, int $partySize): void
+    {
+        $capacity = array_sum(array_map(static fn(array $table) => (int)$table['capacity'], $tables));
+        if ($capacity < $partySize) {
+            throw new RuntimeException('Combined table capacity is insufficient', 422);
+        }
+    }
+
+    private static function ensureTablesFree(PDO $pdo, array $tableIds, int $reservationId): void
+    {
+        self::ensurePivotTable($pdo);
+        $placeholders = implode(',', array_fill(0, count($tableIds), '?'));
+        $params = array_merge($tableIds, [$reservationId]);
+
+        $stmt = $pdo->prepare(
+            'SELECT 1
+             FROM TABLE_RESERVATION_TABLE rt
+             INNER JOIN TABLE_RESERVATION r ON r.id = rt.reservation_id
+             WHERE rt.table_id IN (' . $placeholders . ')
+               AND r.status IN ("pending","confirmed","seated")
+               AND r.id <> ?
+             LIMIT 1'
+        );
+        $stmt->execute($params);
+
+        if ($stmt->fetchColumn()) {
+            throw new RuntimeException('One or more selected tables are already assigned', 422);
+        }
+    }
+
+    private static function fetchReservationStatus(PDO $pdo, int $id): ?string
+    {
+        $stmt = $pdo->prepare('SELECT status FROM TABLE_RESERVATION WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+        $status = $stmt->fetchColumn();
+        return $status !== false ? (string)$status : null;
+    }
+
+    private static function setAppUserContext(PDO $pdo, ?int $userId): void
+    {
+        $stmt = $pdo->prepare('SET @app_user_id := :user_id');
+        $stmt->execute(['user_id' => $userId]);
+    }
+
+    private static function callStartSession(PDO $pdo, int $reservationId, ?int $staffId): void
+    {
+        $stmt = $pdo->prepare('CALL sp_start_seating_session(:reservation_id, :staff_id)');
+        $stmt->execute([
+            'reservation_id' => $reservationId,
+            'staff_id' => $staffId,
+        ]);
+        $stmt->closeCursor();
+    }
+
+    private static function callEndSession(PDO $pdo, int $reservationId, string $outcome, ?int $staffId): void
+    {
+        $stmt = $pdo->prepare('CALL sp_end_seating_session(:reservation_id, :outcome, :staff_id)');
+        $stmt->execute([
+            'reservation_id' => $reservationId,
+            'outcome' => $outcome,
+            'staff_id' => $staffId,
+        ]);
+        $stmt->closeCursor();
+    }
+    private static function ensurePivotTable(PDO $pdo): void
+    {
+        static $isEnsured = false;
+        if ($isEnsured) {
+            return;
+        }
+
+        $pdo->exec(
+            'CREATE TABLE IF NOT EXISTS TABLE_RESERVATION_TABLE (
+                reservation_id BIGINT NOT NULL,
+                table_id BIGINT NOT NULL,
+                table_order INT NOT NULL DEFAULT 0,
+                PRIMARY KEY (reservation_id, table_id),
+                KEY idx_res_table (table_id),
+                CONSTRAINT fk_res_table_reservation FOREIGN KEY (reservation_id)
+                    REFERENCES TABLE_RESERVATION(id) ON DELETE CASCADE ON UPDATE RESTRICT,
+                CONSTRAINT fk_res_table_table FOREIGN KEY (table_id)
+                    REFERENCES VENUETABLE(id) ON DELETE CASCADE ON UPDATE RESTRICT
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+
+        $isEnsured = true;
     }
 }

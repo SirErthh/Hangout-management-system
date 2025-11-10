@@ -36,7 +36,7 @@ const AdminDashboard = () => {
       change: "+18%",
       icon: DollarSign,
       gradient: "from-green-500 to-emerald-500",
-      go: () => goto("/admin/reports"),
+      go: () => goto("/admin/closure"),
     },
     {
       title: "Growth Rate",
@@ -44,7 +44,7 @@ const AdminDashboard = () => {
       change: "+5.2%",
       icon: TrendingUp,
       gradient: "from-orange-500 to-red-500",
-      go: () => goto("/admin/analytics"),
+      go: () => goto("/admin/menu"),
     },
   ];
 
@@ -161,7 +161,7 @@ const AdminDashboard = () => {
             <QuickAction
               title="Create New Event"
               subtitle="Add upcoming show or party"
-              onClick={() => goto("/admin/events/new")}
+              onClick={() => goto("/admin/events")}
             />
             <QuickAction
               title="Manage Users"
@@ -171,7 +171,7 @@ const AdminDashboard = () => {
             <QuickAction
               title="Day Closure"
               subtitle="End of day reconciliation"
-              onClick={() => goto("/admin/day-closure")}
+              onClick={() => goto("/admin/closure")}
             />
           </CardContent>
         </Card>

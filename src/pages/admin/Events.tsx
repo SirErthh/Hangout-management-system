@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Plus, Calendar, Edit, Trash2 } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
@@ -38,8 +48,13 @@ const AdminEvents = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<EventItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
+    artist: "",
     date: "",
     price: "",
     description: "",
@@ -47,36 +62,67 @@ const AdminEvents = () => {
     ticketCodePrefix: "",
   });
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    const loadEvents = async () => {
+  const loadEvents = useCallback(
+    async (signal?: AbortSignal) => {
       setLoading(true);
       try {
-        const { events: fetched } = await api.getEvents(controller.signal);
-        setEvents(fetched ?? []);
+        const { events: fetched } = await api.getEvents(signal);
+        if (!signal?.aborted) {
+          setEvents(fetched ?? []);
+        }
       } catch (error) {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           handleApiError(error, "Failed to load events");
           setEvents([]);
         }
       } finally {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           setLoading(false);
         }
       }
-    };
+    },
+    [],
+  );
 
-    loadEvents();
-
+  useEffect(() => {
+    const controller = new AbortController();
+    loadEvents(controller.signal);
     return () => controller.abort();
-  }, []);
+  }, [loadEvents]);
+
+  useEffect(() => {
+    if (!dialogOpen) {
+      setEditingEvent(null);
+      setFormData({
+        name: "",
+        artist: "",
+        date: "",
+        price: "",
+        description: "",
+        imageUrl: "",
+        ticketCodePrefix: "",
+      });
+      setImagePreview("");
+    }
+  }, [dialogOpen]);
+
+  useEffect(() => {
+    if (!dialogOpen) {
+      return;
+    }
+    const preview = resolvePreview(formData.imageUrl);
+    setImagePreview(preview);
+  }, [dialogOpen, formData.imageUrl]);
 
   const notifyEventsUpdated = () => {
     window.dispatchEvent(new Event("events-updated"));
   };
 
   const handleFileChange = (file?: File) => {
+    if (uploadingImage) {
+      toast.error("Please wait for the current upload to finish");
+      return;
+    }
     if (!file) return;
     if (file.size > MAX_FILE_SIZE) {
       toast.error("File is larger than 2MB. Please compress it first.");
@@ -84,9 +130,37 @@ const AdminEvents = () => {
     }
     const reader = new FileReader();
     reader.onload = () => {
-      setFormData((prev) => ({ ...prev, imageUrl: (reader.result as string) || "" }));
+      const dataUrl = (reader.result as string) || "";
+      if (!dataUrl) {
+        toast.error("Failed to read image");
+        return;
+      }
+      setUploadingImage(true);
+      api
+        .uploadImage(dataUrl)
+        .then(({ path, url }) => {
+          setFormData((prev) => ({ ...prev, imageUrl: path }));
+          setImagePreview(url || path);
+          toast.success("Image uploaded");
+        })
+        .catch((error) => handleApiError(error, "Failed to upload image"))
+        .finally(() => setUploadingImage(false));
     };
     reader.readAsDataURL(file);
+  };
+
+  const resolvePreview = (value?: string | null) => {
+    if (!value) return "";
+    if (
+      value.startsWith("http") ||
+      value.startsWith("https://") ||
+      value.startsWith("data:") ||
+      value.startsWith("blob:") ||
+      value.startsWith("/")
+    ) {
+      return value;
+    }
+    return "";
   };
 
   const openNewEventDialog = () => {
@@ -106,12 +180,14 @@ const AdminEvents = () => {
     setEditingEvent(event);
     setFormData({
       name: event.name ?? "",
+      artist: event.artist ?? "",
       date: event.date ?? "",
       price: String(event.price ?? ""),
       description: event.description ?? "",
       imageUrl: event.image_url ?? "",
       ticketCodePrefix: (event.ticketCodePrefix ?? "").toUpperCase(),
     });
+    setImagePreview(resolvePreview(event.image_url));
     setDialogOpen(true);
   };
 
@@ -126,6 +202,7 @@ const AdminEvents = () => {
 
     const payload = {
       name: formData.name.trim(),
+      artist: formData.artist.trim(),
       date: formData.date,
       price: priceNum,
       description: formData.description,
@@ -138,23 +215,32 @@ const AdminEvents = () => {
       return;
     }
 
+    if (formData.imageUrl && formData.imageUrl.startsWith("data:")) {
+      toast.error("Please upload the selected image before saving");
+      return;
+    }
+
+    if (uploadingImage) {
+      toast.error("Please wait for the image upload to finish");
+      return;
+    }
+
     setSaving(true);
     try {
       let updated: EventItem;
       if (editingEvent) {
         const { event } = await api.updateEvent(editingEvent.id, payload);
         updated = event;
-        setEvents((prev) => prev.map((evt) => (evt.id === event.id ? event : evt)));
         toast.success("Event updated successfully!");
       } else {
         const { event } = await api.createEvent(payload);
         updated = event;
-        setEvents((prev) => [event, ...prev]);
         toast.success("Event created successfully!");
       }
+      await loadEvents();
       notifyEventsUpdated();
       setDialogOpen(false);
-      setEditingEvent(updated);
+      setEditingEvent(null);
       setFormData({
         name: "",
         date: "",
@@ -163,6 +249,7 @@ const AdminEvents = () => {
         imageUrl: "",
         ticketCodePrefix: "",
       });
+      setImagePreview("");
     } catch (error) {
       handleApiError(error, "Failed to save event");
     } finally {
@@ -170,18 +257,26 @@ const AdminEvents = () => {
     }
   };
 
-  const deleteEvent = async (id: number) => {
-    if (!confirm("Delete this event?")) {
+  const deleteEvent = (event: EventItem) => {
+    setDeleteTarget(event);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) {
       return;
     }
 
+    setDeleting(true);
     try {
-      await api.deleteEvent(id);
-      setEvents((prev) => prev.filter((evt) => evt.id !== id));
+      await api.deleteEvent(deleteTarget.id);
+      await loadEvents();
       notifyEventsUpdated();
       toast.success("Event deleted");
+      setDeleteTarget(null);
     } catch (error) {
       handleApiError(error, "Failed to delete event");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -191,7 +286,8 @@ const AdminEvents = () => {
       (urlOrEmoji.startsWith("http://") ||
         urlOrEmoji.startsWith("https://") ||
         urlOrEmoji.startsWith("data:") ||
-        urlOrEmoji.startsWith("blob:"));
+        urlOrEmoji.startsWith("blob:") ||
+        urlOrEmoji.startsWith("/"));
     return isImageURL ? (
       <div className="w-full h-48 overflow-hidden rounded-t-lg">
         <img src={urlOrEmoji} alt={name} className="w-full h-full object-cover" />
@@ -204,7 +300,8 @@ const AdminEvents = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 animate-slide-up">
+    <>
+      <div className="p-6 space-y-6 animate-slide-up">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold mb-2">Events Management</h1>
@@ -235,6 +332,18 @@ const AdminEvents = () => {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="artist">Artist / Headliner</Label>
+                  <Input
+                    id="artist"
+                    value={formData.artist}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, artist: e.target.value }))}
+                    placeholder="Resident DJ"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
                   <Label htmlFor="date">Date</Label>
                   <Input
                     id="date"
@@ -243,9 +352,6 @@ const AdminEvents = () => {
                     onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="price">Ticket Price (THB)</Label>
                   <Input
@@ -257,22 +363,23 @@ const AdminEvents = () => {
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ticketCodePrefix">Ticket Code Prefix</Label>
-                  <Input
-                    id="ticketCodePrefix"
-                    maxLength={3}
-                    value={formData.ticketCodePrefix}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        ticketCodePrefix: e.target.value.toUpperCase(),
-                      }))
-                    }
-                    placeholder="e.g. GEF"
-                    required
-                  />
-                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ticketCodePrefix">Ticket Code Prefix</Label>
+                <Input
+                  id="ticketCodePrefix"
+                  maxLength={3}
+                  value={formData.ticketCodePrefix}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      ticketCodePrefix: e.target.value.toUpperCase(),
+                    }))
+                  }
+                  placeholder="e.g. GEF"
+                  required
+                />
               </div>
 
               <div className="space-y-2">
@@ -293,14 +400,31 @@ const AdminEvents = () => {
                   onChange={(e) => setFormData((prev) => ({ ...prev, imageUrl: e.target.value }))}
                   placeholder="Or paste emoji / image URL"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Uploads support up to 2MB. You can also provide an emoji or hosted URL.
+                </p>
+                {imagePreview && (
+                  <div className="rounded-lg border overflow-hidden">
+                    <img src={imagePreview} alt="Event preview" className="h-40 w-full object-cover" />
+                  </div>
+                )}
+                {uploadingImage && (
+                  <p className="text-xs text-muted-foreground">Uploading image...</p>
+                )}
               </div>
 
               <div className="flex justify-end gap-3">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={saving}>
-                  {saving ? "Saving…" : editingEvent ? "Update Event" : "Create Event"}
+                <Button type="submit" disabled={saving || uploadingImage}>
+                  {saving
+                    ? "Saving…"
+                    : uploadingImage
+                    ? "Uploading…"
+                    : editingEvent
+                    ? "Update Event"
+                    : "Create Event"}
                 </Button>
               </div>
             </form>
@@ -351,11 +475,7 @@ const AdminEvents = () => {
                     <Edit className="h-4 w-4 mr-2" />
                     Edit
                   </Button>
-                  <Button
-                    variant="destructive"
-                    className="flex-1"
-                    onClick={() => deleteEvent(event.id)}
-                  >
+                  <Button variant="destructive" className="flex-1" onClick={() => deleteEvent(event)}>
                     <Trash2 className="h-4 w-4 mr-2" />
                     Delete
                   </Button>
@@ -365,7 +485,29 @@ const AdminEvents = () => {
           ))}
         </div>
       )}
-    </div>
+      </div>
+
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete event</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove{" "}
+              <span className="font-semibold">{deleteTarget?.name ?? "this event"}</span>. This action cannot
+              be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting} onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} disabled={deleting}>
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };
 

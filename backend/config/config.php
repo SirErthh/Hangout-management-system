@@ -9,7 +9,7 @@ return [
     ],
     'database' => [
         'host' => getenv('DB_HOST') ?: '127.0.0.1',
-        'port' => (int)(getenv('DB_PORT') ?: 3306),
+        'port' => (int)(getenv('DB_PORT') ?: 8889),
         'database' => getenv('DB_DATABASE') ?: 'Hangout',
         'username' => getenv('DB_USERNAME') ?: 'root',
         'password' => getenv('DB_PASSWORD') ?: 'root',
