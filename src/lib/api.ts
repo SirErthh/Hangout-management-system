@@ -1,10 +1,13 @@
 import { toast } from "sonner";
 
-const DEFAULT_BASE_URL = "";
+const DEFAULT_BASE_URL =
+  import.meta.env.DEV && typeof window !== "undefined"
+    ? `http://${window.location.hostname || "localhost"}:8000`
+    : "";
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_URL as string | undefined
-)?.replace(/\/+$/, "") ?? DEFAULT_BASE_URL;
+const rawBaseUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? DEFAULT_BASE_URL;
+
+const API_BASE_URL = rawBaseUrl ? rawBaseUrl.replace(/\/+$/, "") : "";
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
