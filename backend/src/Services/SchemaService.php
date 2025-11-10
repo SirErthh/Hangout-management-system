@@ -200,11 +200,6 @@ final class SchemaService
 
     private static function seedTables(PDO $pdo): void
     {
-        $count = (int)$pdo->query('SELECT COUNT(*) FROM VENUETABLE')->fetchColumn();
-        if ($count > 0) {
-            return;
-        }
-
         $tables = [
             ['table_name' => 'T1', 'capacity' => 2],
             ['table_name' => 'T2', 'capacity' => 4],
@@ -212,13 +207,41 @@ final class SchemaService
             ['table_name' => 'T4', 'capacity' => 6],
             ['table_name' => 'T5', 'capacity' => 2],
             ['table_name' => 'T6', 'capacity' => 8],
+            ['table_name' => 'T7', 'capacity' => 2],
+            ['table_name' => 'T8', 'capacity' => 2],
+            ['table_name' => 'T9', 'capacity' => 2],
+            ['table_name' => 'T10', 'capacity' => 2],
+            ['table_name' => 'T11', 'capacity' => 2],
+            ['table_name' => 'T12', 'capacity' => 3],
+            ['table_name' => 'T13', 'capacity' => 3],
+            ['table_name' => 'T14', 'capacity' => 3],
+            ['table_name' => 'T15', 'capacity' => 3],
+            ['table_name' => 'T16', 'capacity' => 3],
+            ['table_name' => 'T17', 'capacity' => 4],
+            ['table_name' => 'T18', 'capacity' => 4],
+            ['table_name' => 'T19', 'capacity' => 4],
+            ['table_name' => 'T20', 'capacity' => 4],
+            ['table_name' => 'T21', 'capacity' => 4],
+            ['table_name' => 'T22', 'capacity' => 4],
+            ['table_name' => 'T23', 'capacity' => 5],
+            ['table_name' => 'T24', 'capacity' => 5],
+            ['table_name' => 'T25', 'capacity' => 5],
+            ['table_name' => 'T26', 'capacity' => 5],
+            ['table_name' => 'T27', 'capacity' => 5],
         ];
 
-        $stmt = $pdo->prepare(
+        $existsStmt = $pdo->prepare('SELECT id FROM VENUETABLE WHERE table_name = :name LIMIT 1');
+        $insertStmt = $pdo->prepare(
             'INSERT INTO VENUETABLE (table_name, capacity, is_active) VALUES (:name, :capacity, :active)'
         );
+
         foreach ($tables as $table) {
-            $stmt->execute([
+            $existsStmt->execute(['name' => $table['table_name']]);
+            if ($existsStmt->fetchColumn()) {
+                continue;
+            }
+
+            $insertStmt->execute([
                 'name' => $table['table_name'],
                 'capacity' => $table['capacity'],
                 'active' => 1,

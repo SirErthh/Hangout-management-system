@@ -63,6 +63,7 @@ $router->get('/api/tables', [$reservations, 'tables'], ['auth']);
 
 $router->get('/api/day-closure', [$dayClosure, 'show'], ['auth']);
 $router->post('/api/day-closure', [$dayClosure, 'store'], ['auth']);
+$router->post('/api/day-closure/start', [$dayClosure, 'start'], ['auth']);
 
 $router->get('/api/users', [$users, 'index'], ['auth']);
 $router->patch('/api/users/{id}/role', [$users, 'updateRole'], ['auth']);

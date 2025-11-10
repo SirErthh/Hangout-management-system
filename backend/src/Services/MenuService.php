@@ -65,8 +65,29 @@ final class MenuService
 
     public static function delete(int $id): void
     {
-        $stmt = Database::connection()->prepare('DELETE FROM MENU_ITEM WHERE id = :id');
-        $stmt->execute(['id' => $id]);
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+
+        try {
+            $orderIds = self::fetchIds(
+                $pdo,
+                'SELECT DISTINCT order_id FROM FNB_ORDER_ITEM WHERE menu_item_id = :id',
+                ['id' => $id],
+            );
+
+            $deleteItems = $pdo->prepare('DELETE FROM FNB_ORDER_ITEM WHERE menu_item_id = :id');
+            $deleteItems->execute(['id' => $id]);
+
+            self::deleteOrdersWithoutItems($pdo, $orderIds, 'FNB_ORDER', 'FNB_ORDER_ITEM');
+
+            $stmt = $pdo->prepare('DELETE FROM MENU_ITEM WHERE id = :id');
+            $stmt->execute(['id' => $id]);
+
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
     }
 
     public static function find(int $id): ?array
@@ -94,5 +115,32 @@ final class MenuService
             'is_active' => (bool)$row['is_active'],
             'description' => $row['description'],
         ];
+    }
+
+    /**
+     * @return array<int>
+     */
+    private static function fetchIds(PDO $pdo, string $sql, array $params = []): array
+    {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    private static function deleteOrdersWithoutItems(PDO $pdo, array $orderIds, string $orderTable, string $itemTable): void
+    {
+        if (empty($orderIds)) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
+        $sql = "DELETE FROM {$orderTable}
+                WHERE id IN ({$placeholders})
+                  AND NOT EXISTS (
+                      SELECT 1 FROM {$itemTable} WHERE {$itemTable}.order_id = {$orderTable}.id
+                  )";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($orderIds);
     }
 }

@@ -243,6 +243,25 @@ export const api = {
       body: { status },
       auth: true,
     }),
+  getDayClosure: () =>
+    apiRequest<{ closure: any | null; summary: any; summaryDate: string }>(
+      "/api/day-closure",
+      {
+        auth: true,
+      },
+    ),
+  closeDay: (payload: { note?: string; opened_at?: string; closed_at?: string; date?: string } = {}) =>
+    apiRequest<{ closure: any; summary: any; summaryDate: string }>("/api/day-closure", {
+      method: "POST",
+      body: payload,
+      auth: true,
+    }),
+  startDay: (payload: { date?: string; opened_at?: string; note?: string } = {}) =>
+    apiRequest<{ closure: any; summary: any; summaryDate: string }>("/api/day-closure/start", {
+      method: "POST",
+      body: payload,
+      auth: true,
+    }),
   getUsers: (signal?: AbortSignal) =>
     apiRequest<{ users: any[] }>("/api/users", {
       auth: true,

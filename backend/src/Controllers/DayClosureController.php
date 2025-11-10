@@ -13,27 +13,32 @@ final class DayClosureController
     public function show(Request $request): array
     {
         $this->ensureAdmin($request);
+        $closure = DayClosureService::getToday();
+        $summaryDate = date('Y-m-d');
+        if ($closure) {
+            if ($closure['status'] === 'open') {
+                $summaryDate = $closure['closureDate'];
+            } else {
+                $summaryDate = date('Y-m-d', strtotime($closure['closureDate'] . ' +1 day'));
+            }
+        }
         return [
-            'closure' => DayClosureService::getToday(),
+            'closure' => $closure,
+            'summary' => DayClosureService::summary($summaryDate),
+            'summaryDate' => $summaryDate,
         ];
     }
 
     public function store(Request $request): array
     {
         $this->ensureAdmin($request);
-        $payload = $request->all();
-        $data = [
-            'ticket_sales_baht' => (float)($payload['ticket_sales_baht'] ?? 0),
-            'fnb_sales_baht' => (float)($payload['fnb_sales_baht'] ?? 0),
-            'promptpay_amount_baht' => (float)($payload['promptpay_amount_baht'] ?? 0),
-            'note' => $payload['note'] ?? null,
-            'opened_at' => $payload['opened_at'] ?? null,
-            'closed_at' => $payload['closed_at'] ?? null,
-        ];
+        return DayClosureService::store($request->all());
+    }
 
-        return [
-            'closure' => DayClosureService::store($data),
-        ];
+    public function start(Request $request): array
+    {
+        $this->ensureAdmin($request);
+        return DayClosureService::startDay($request->all());
     }
 
     private function ensureAdmin(Request $request): void
