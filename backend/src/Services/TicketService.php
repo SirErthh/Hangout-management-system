@@ -24,8 +24,8 @@ final class TicketService
         $total = $data['quantity'] * $event['price'];
 
         $orderStmt = $pdo->prepare(
-            'INSERT INTO TICKETS_ORDER (user_id, order_code, status, total_baht, payment_method, created_at)
-             VALUES (:user_id, :order_code, :status, :total_baht, :payment_method, NOW())'
+            'INSERT INTO TICKETS_ORDER (user_id, order_code, status, total_baht, payment_method, created_at, paid_by_user_id)
+             VALUES (:user_id, :order_code, :status, :total_baht, :payment_method, NOW(), :paid_by_user_id)'
         );
         $orderStmt->execute([
             'user_id' => $data['user_id'],
@@ -33,6 +33,7 @@ final class TicketService
             'status' => 'pending',
             'total_baht' => $total,
             'payment_method' => 'cash',
+            'paid_by_user_id' => $data['user_id'],
         ]);
         $orderId = (int)$pdo->lastInsertId();
 
@@ -132,58 +133,223 @@ final class TicketService
         }
 
         $stmt = Database::connection()->prepare(
-            'UPDATE TICKETS_ORDER SET status = :status WHERE id = :id'
+            'UPDATE TICKETS_ORDER
+             SET status = :status,
+                 paid_at = CASE
+                     WHEN :status_completed = \'confirmed\' THEN NOW()
+                     WHEN :status_reset IN (\'pending\',\'cancelled\') THEN NULL
+                     ELSE paid_at
+                 END,
+                 verified_at = CASE
+                     WHEN :status_completed = \'confirmed\' THEN NOW()
+                     WHEN :status_reset IN (\'pending\',\'cancelled\') THEN NULL
+                     ELSE verified_at
+                 END
+             WHERE id = :id'
         );
         $stmt->execute([
             'status' => $status,
             'id' => $orderId,
+            'status_completed' => $status,
+            'status_reset' => $status,
         ]);
 
         return self::find($orderId) ?? [];
     }
 
-    public static function confirmTicket(int $orderId, string $code): array
+    public static function confirmTicket(int $orderId, string $code, ?array $actor = null, ?string $note = null): array
     {
         $pdo = Database::connection();
+        $pdo->beginTransaction();
 
-        $ticketStmt = $pdo->prepare(
-            'SELECT tc.id, tc.status
-             FROM TICKET_CODE tc
-             INNER JOIN TICKET_ORDER_ITEM toi ON toi.id = tc.order_item_id
-             WHERE toi.order_id = :order_id AND tc.code = :code
-             LIMIT 1'
-        );
-        $ticketStmt->execute(['order_id' => $orderId, 'code' => $code]);
-        $ticket = $ticketStmt->fetch(PDO::FETCH_ASSOC);
+        try {
+            $ticketStmt = $pdo->prepare(
+                'SELECT tc.id AS ticket_code_id,
+                        tc.code AS ticket_code,
+                        tc.status,
+                        tc.order_item_id,
+                        toi.event_id,
+                        o.user_id AS customer_id
+                 FROM TICKET_CODE tc
+                 INNER JOIN TICKET_ORDER_ITEM toi ON toi.id = tc.order_item_id
+                 INNER JOIN TICKETS_ORDER o ON o.id = toi.order_id
+                 WHERE toi.order_id = :order_id AND tc.code = :code
+                 LIMIT 1'
+            );
+            $ticketStmt->execute(['order_id' => $orderId, 'code' => $code]);
+            $ticket = $ticketStmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$ticket) {
-            throw new RuntimeException('Ticket code not found', 404);
+            if (!$ticket) {
+                throw new RuntimeException('Ticket code not found', 404);
+            }
+
+            $alreadyConfirmed = $ticket['status'] === 'confirmed';
+            if (!$alreadyConfirmed) {
+                $update = $pdo->prepare('UPDATE TICKET_CODE SET status = "confirmed", confirmed_at = NOW() WHERE id = :id');
+                $update->execute(['id' => $ticket['ticket_code_id']]);
+            }
+
+            self::recordCheckIn($pdo, [
+                'order_id' => $orderId,
+                'order_item_id' => (int)$ticket['order_item_id'],
+                'ticket_code_id' => (int)$ticket['ticket_code_id'],
+                'ticket_code' => $ticket['ticket_code'],
+                'event_id' => isset($ticket['event_id']) ? (int)$ticket['event_id'] : null,
+                'customer_id' => isset($ticket['customer_id']) ? (int)$ticket['customer_id'] : null,
+                'staff_id' => $actor['id'] ?? null,
+                'note' => $note,
+            ]);
+
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
-
-        if ($ticket['status'] === 'confirmed') {
-            return self::find($orderId) ?? [];
-        }
-
-        $update = $pdo->prepare('UPDATE TICKET_CODE SET status = "confirmed", confirmed_at = NOW() WHERE id = :id');
-        $update->execute(['id' => $ticket['id']]);
 
         return self::find($orderId) ?? [];
     }
 
-    public static function confirmAll(int $orderId): array
+    public static function confirmAll(int $orderId, ?array $actor = null, ?string $note = null): array
     {
         $pdo = Database::connection();
-        $update = $pdo->prepare(
-            'UPDATE TICKET_CODE SET status = "confirmed", confirmed_at = NOW()
-             WHERE order_item_id IN (
-                SELECT id FROM TICKET_ORDER_ITEM WHERE order_id = :order_id
-             )'
-        );
-        $update->execute(['order_id' => $orderId]);
+        $pdo->beginTransaction();
+
+        try {
+            $ticketStmt = $pdo->prepare(
+                'SELECT tc.id AS ticket_code_id,
+                        tc.code AS ticket_code,
+                        tc.order_item_id,
+                        tc.status,
+                        toi.event_id,
+                        o.user_id AS customer_id
+                 FROM TICKET_CODE tc
+                 INNER JOIN TICKET_ORDER_ITEM toi ON toi.id = tc.order_item_id
+                 INNER JOIN TICKETS_ORDER o ON o.id = toi.order_id
+                 WHERE toi.order_id = :order_id'
+            );
+            $ticketStmt->execute(['order_id' => $orderId]);
+            $tickets = $ticketStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if (!$tickets) {
+                throw new RuntimeException('No tickets found for order', 404);
+            }
+
+            $update = $pdo->prepare(
+                'UPDATE TICKET_CODE SET status = "confirmed", confirmed_at = NOW()
+                 WHERE order_item_id IN (
+                    SELECT id FROM TICKET_ORDER_ITEM WHERE order_id = :order_id
+                 )'
+            );
+            $update->execute(['order_id' => $orderId]);
+
+            foreach ($tickets as $ticket) {
+                self::recordCheckIn($pdo, [
+                    'order_id' => $orderId,
+                    'order_item_id' => (int)$ticket['order_item_id'],
+                    'ticket_code_id' => (int)$ticket['ticket_code_id'],
+                    'ticket_code' => $ticket['ticket_code'],
+                    'event_id' => isset($ticket['event_id']) ? (int)$ticket['event_id'] : null,
+                    'customer_id' => isset($ticket['customer_id']) ? (int)$ticket['customer_id'] : null,
+                    'staff_id' => $actor['id'] ?? null,
+                    'note' => $note,
+                ]);
+            }
+
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
 
         self::updateStatus($orderId, 'confirmed');
 
         return self::find($orderId) ?? [];
+    }
+
+    private static function recordCheckIn(PDO $pdo, array $data): void
+    {
+        $existsStmt = $pdo->prepare('SELECT id FROM CHECK_IN WHERE ticket_code_id = :ticket_code_id LIMIT 1');
+        $existsStmt->execute(['ticket_code_id' => $data['ticket_code_id']]);
+        $existingId = $existsStmt->fetchColumn();
+        if ($existingId) {
+            $update = $pdo->prepare(
+                'UPDATE CHECK_IN
+                 SET ticket_order_id = :order_id,
+                     order_id = :order_id,
+                     ticket_order_item_id = :order_item_id,
+                     ticket_code = :ticket_code,
+                     event_id = :event_id,
+                     customer_id = :customer_id,
+                     staff_id = :staff_id,
+                     note = :note
+                 WHERE id = :id'
+            );
+            $update->execute([
+                'order_id' => $data['order_id'],
+                'order_item_id' => $data['order_item_id'],
+                'ticket_code' => $data['ticket_code'],
+                'event_id' => $data['event_id'],
+                'customer_id' => $data['customer_id'],
+                'staff_id' => $data['staff_id'],
+                'note' => $data['note'],
+                'id' => $existingId,
+            ]);
+            return;
+        }
+
+        $slotStmt = $pdo->prepare(
+            'SELECT COALESCE(MAX(slot_no), 0) + 1 AS next_slot
+             FROM CHECK_IN
+             WHERE ticket_order_item_id = :order_item_id'
+        );
+        $slotStmt->execute(['order_item_id' => $data['order_item_id']]);
+        $slot = (int)$slotStmt->fetchColumn();
+        if ($slot <= 0) {
+            $slot = 1;
+        }
+
+        $insert = $pdo->prepare(
+            'INSERT INTO CHECK_IN (
+                ticket_order_id,
+                order_id,
+                ticket_order_item_id,
+                slot_no,
+                scanned_at,
+                ticket_code_id,
+                ticket_code,
+                event_id,
+                customer_id,
+                staff_id,
+                note
+            ) VALUES (
+                :order_id,
+                :order_id,
+                :order_item_id,
+                :slot_no,
+                NOW(),
+                :ticket_code_id,
+                :ticket_code,
+                :event_id,
+                :customer_id,
+                :staff_id,
+                :note
+            )'
+        );
+        $insert->execute([
+            'order_id' => $data['order_id'],
+            'order_item_id' => $data['order_item_id'],
+            'slot_no' => $slot,
+            'ticket_code_id' => $data['ticket_code_id'],
+            'ticket_code' => $data['ticket_code'],
+            'event_id' => $data['event_id'],
+            'customer_id' => $data['customer_id'],
+            'staff_id' => $data['staff_id'],
+            'note' => $data['note'],
+        ]);
     }
 
     public static function find(int $orderId): ?array

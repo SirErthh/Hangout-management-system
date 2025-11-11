@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,27 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Users, AlertCircle, Calendar as CalendarIcon } from "lucide-react";
+import { api, handleApiError } from "@/lib/api";
+
+const formatDateKey = (value: Date): string => {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const extractDateKey = (raw?: string | null): string | null => {
+  if (!raw) return null;
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match && match[1]) {
+    return match[1];
+  }
+  const timestamp = Date.parse(raw);
+  if (Number.isNaN(timestamp)) {
+    return null;
+  }
+  return formatDateKey(new Date(timestamp));
+};
 
 const Reserve = () => {
   const navigate = useNavigate();
@@ -16,18 +37,54 @@ const Reserve = () => {
   const [partySize, setPartySize] = useState<number>(2);
   const [showEventDialog, setShowEventDialog] = useState(false);
   const [eventDates, setEventDates] = useState<string[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+  const [eventsError, setEventsError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load event dates from localStorage
-    const events = JSON.parse(localStorage.getItem('events') || '[]');
-    const dates = events.map((e: any) => e.date);
-    setEventDates(dates);
+    const controller = new AbortController();
+
+    const loadEvents = async () => {
+      try {
+        setLoadingEvents(true);
+        setEventsError(null);
+        const { events = [] } = await api.getEvents({
+          activeOnly: true,
+          signal: controller.signal,
+        });
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        const dates = events
+          .map((event: any) => extractDateKey(event.starts_at || event.date))
+          .filter((value): value is string => Boolean(value));
+
+        setEventDates(Array.from(new Set(dates)));
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          handleApiError(error, "Failed to load event schedule");
+          setEventsError("Unable to check event schedule right now.");
+          setEventDates([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadingEvents(false);
+        }
+      }
+    };
+
+    loadEvents();
+
+    return () => controller.abort();
   }, []);
+
+  const eventDateSet = useMemo(() => new Set(eventDates), [eventDates]);
 
   const isEventDate = (selectedDate: Date | undefined) => {
     if (!selectedDate) return false;
-    const dateStr = selectedDate.toISOString().split('T')[0];
-    return eventDates.includes(dateStr);
+    const dateStr = formatDateKey(selectedDate);
+    return eventDateSet.has(dateStr);
   };
 
   const handleReserve = () => {
@@ -90,6 +147,20 @@ const Reserve = () => {
                   Tables are available until 10:00 PM. If not confirmed, reservations will be released automatically.
                 </AlertDescription>
               </Alert>
+
+              {loadingEvents && (
+                <Alert>
+                  <CalendarIcon className="h-4 w-4" />
+                  <AlertDescription>Checking event schedule...</AlertDescription>
+                </Alert>
+              )}
+
+              {eventsError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{eventsError}</AlertDescription>
+                </Alert>
+              )}
 
               {isEventDate(date) && (
                 <Alert variant="destructive">

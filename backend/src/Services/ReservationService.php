@@ -14,6 +14,7 @@ final class ReservationService
     public static function create(array $data): array
     {
         $pdo = Database::connection();
+        self::ensurePivotTable($pdo);
         $stmt = $pdo->prepare(
             'INSERT INTO TABLE_RESERVATION (
                 user_id,
@@ -449,6 +450,73 @@ final class ReservationService
             'staff_id' => $staffId,
         ]);
         $stmt->closeCursor();
+    }
+
+    public static function userHasConfirmedReservation(int $userId): bool
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT 1
+             FROM TABLE_RESERVATION
+             WHERE user_id = :user_id
+               AND status IN ("confirmed","seated")
+             LIMIT 1'
+        );
+        $stmt->execute(['user_id' => $userId]);
+        return (bool)$stmt->fetchColumn();
+    }
+
+    public static function latestActiveReservation(int $userId): ?array
+    {
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare(
+            'SELECT r.id,
+                    r.assigned_table_id,
+                    r.status,
+                    r.reserved_date,
+                    t.table_name
+             FROM TABLE_RESERVATION r
+             LEFT JOIN VENUETABLE t ON t.id = r.assigned_table_id
+             WHERE r.user_id = :user_id
+               AND r.status IN ("confirmed","seated")
+             ORDER BY r.reserved_date DESC, r.id DESC
+             LIMIT 1'
+        );
+        $stmt->execute(['user_id' => $userId]);
+        $reservation = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$reservation) {
+            return null;
+        }
+
+        $tableId = isset($reservation['assigned_table_id']) ? (int)$reservation['assigned_table_id'] : null;
+        $tableName = $reservation['table_name'] ?? null;
+
+        if ($tableId === 0) {
+            $tableId = null;
+        }
+
+        if ($tableId === null) {
+            $pivot = $pdo->prepare(
+                'SELECT t.id, t.table_name
+                 FROM TABLE_RESERVATION_TABLE rt
+                 INNER JOIN VENUETABLE t ON t.id = rt.table_id
+                 WHERE rt.reservation_id = :reservation_id
+                 ORDER BY rt.table_order ASC
+                 LIMIT 1'
+            );
+            $pivot->execute(['reservation_id' => $reservation['id']]);
+            $table = $pivot->fetch(PDO::FETCH_ASSOC);
+            if ($table) {
+                $tableId = (int)$table['id'];
+                $tableName = $table['table_name'];
+            }
+        }
+
+        return [
+            'id' => (int)$reservation['id'],
+            'table_id' => $tableId,
+            'table_name' => $tableName,
+            'status' => $reservation['status'],
+        ];
     }
     private static function ensurePivotTable(PDO $pdo): void
     {

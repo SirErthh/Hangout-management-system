@@ -126,8 +126,10 @@ export const api = {
     apiRequest<{ user: any }>("/api/auth/me", {
       auth: true,
     }),
-  getEvents: (signal?: AbortSignal) =>
-    apiRequest<{ events: any[] }>("/api/events", { signal }),
+  getEvents: (options?: { activeOnly?: boolean; signal?: AbortSignal }) => {
+    const query = options?.activeOnly ? "?active=1" : "";
+    return apiRequest<{ events: any[] }>(`/api/events${query}`, { signal: options?.signal });
+  },
   getMenuItems: (signal?: AbortSignal) =>
     apiRequest<{ items: any[] }>("/api/menu-items", { signal }),
   orderMenu: (payload: { items: any[]; table_id?: number | null; note?: string }) =>
@@ -146,6 +148,12 @@ export const api = {
     apiRequest<{ event: any }>(`/api/events/${id}`, {
       method: "PUT",
       body: payload,
+      auth: true,
+    }),
+  updateEventStatus: (id: number, status: string) =>
+    apiRequest<{ event: any }>(`/api/events/${id}/status`, {
+      method: "PATCH",
+      body: { status },
       auth: true,
     }),
   deleteEvent: (id: number) =>
@@ -187,17 +195,28 @@ export const api = {
       body: { status },
       auth: true,
     }),
-  confirmTicket: (id: number, code: string) =>
+  confirmTicket: (id: number, code: string, note?: string) =>
     apiRequest<{ order: any }>(`/api/ticket-orders/${id}/confirm`, {
       method: "POST",
-      body: { code },
+      body: { code, note },
       auth: true,
     }),
-  confirmAllTickets: (id: number) =>
+  confirmAllTickets: (id: number, note?: string) =>
     apiRequest<{ order: any }>(`/api/ticket-orders/${id}/confirm-all`, {
       method: "POST",
+      body: note ? { note } : undefined,
       auth: true,
     }),
+  getStaffDashboard: () =>
+    apiRequest<{ date: string; ticketsToday: number; reservationsToday: number; fnbOrdersToday: number; guestsToday: number }>(
+      "/api/staff/dashboard",
+      { auth: true },
+    ),
+  getAdminDashboard: () =>
+    apiRequest<{ totalUsers: number; activeEvents: number; totalRevenue: number; staffCount: number }>(
+      "/api/admin/dashboard",
+      { auth: true },
+    ),
   uploadImage: (dataUrl: string) =>
     apiRequest<{ url: string; path: string }>("/api/uploads", {
       method: "POST",
@@ -244,24 +263,33 @@ export const api = {
       auth: true,
     }),
   getDayClosure: () =>
-    apiRequest<{ closure: any | null; summary: any; summaryDate: string }>(
+    apiRequest<{
+      closure: any | null;
+      summary: any;
+      summaryDate: string;
+      previousClosure?: any | null;
+      nextDate?: string;
+    }>("/api/day-closure", {
+      auth: true,
+    }),
+  closeDay: (payload: { note?: string; opened_at?: string; closed_at?: string; date?: string } = {}) =>
+    apiRequest<{ closure: any; summary: any; summaryDate: string; nextDate?: string; previousClosure?: any | null }>(
       "/api/day-closure",
       {
+        method: "POST",
+        body: payload,
         auth: true,
       },
     ),
-  closeDay: (payload: { note?: string; opened_at?: string; closed_at?: string; date?: string } = {}) =>
-    apiRequest<{ closure: any; summary: any; summaryDate: string }>("/api/day-closure", {
-      method: "POST",
-      body: payload,
-      auth: true,
-    }),
   startDay: (payload: { date?: string; opened_at?: string; note?: string } = {}) =>
-    apiRequest<{ closure: any; summary: any; summaryDate: string }>("/api/day-closure/start", {
-      method: "POST",
-      body: payload,
-      auth: true,
-    }),
+    apiRequest<{ closure: any; summary: any; summaryDate: string; nextDate?: string; previousClosure?: any | null }>(
+      "/api/day-closure/start",
+      {
+        method: "POST",
+        body: payload,
+        auth: true,
+      },
+    ),
   getUsers: (signal?: AbortSignal) =>
     apiRequest<{ users: any[] }>("/api/users", {
       auth: true,

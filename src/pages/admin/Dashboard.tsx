@@ -1,50 +1,98 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Users, Calendar, DollarSign, TrendingUp, Zap, ChevronRight } from "lucide-react";
+import { api, handleApiError } from "@/lib/api";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const [metrics, setMetrics] = useState({
+    totalUsers: 0,
+    activeEvents: 0,
+    totalRevenue: 0,
+    staffCount: 0,
+  });
+  const [loadingMetrics, setLoadingMetrics] = useState(true);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
 
   const goto = useCallback((path: string) => {
     if (!path) return;
     navigate(path);
   }, [navigate]);
 
+  useEffect(() => {
+    let mounted = true;
+    const loadMetrics = async () => {
+      setLoadingMetrics(true);
+      setMetricsError(null);
+      try {
+        const data = await api.getAdminDashboard();
+        if (!mounted) return;
+        setMetrics({
+          totalUsers: data.totalUsers ?? 0,
+          activeEvents: data.activeEvents ?? 0,
+          totalRevenue: data.totalRevenue ?? 0,
+          staffCount: data.staffCount ?? 0,
+        });
+      } catch (error) {
+        if (!mounted) return;
+        handleApiError(error, "Failed to load admin metrics");
+        setMetricsError("Unable to load live metrics right now.");
+      } finally {
+        if (mounted) {
+          setLoadingMetrics(false);
+        }
+      }
+    };
+    loadMetrics();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const formatValue = (value: number) => {
+    if (loadingMetrics) return "…";
+    return value.toLocaleString();
+  };
+
+  const formatCurrency = (value: number) => {
+    if (loadingMetrics) return "…";
+    return `฿${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
   // Stats with destinations
   const stats = [
     {
       title: "Total Users",
-      value: "1,234",
-      change: "+12%",
+      value: formatValue(metrics.totalUsers),
+      change: "",
       icon: Users,
       gradient: "from-blue-500 to-cyan-500",
       go: () => goto("/admin/users"),
     },
     {
       title: "Active Events",
-      value: "8",
-      change: "+2",
+      value: formatValue(metrics.activeEvents),
+      change: "",
       icon: Calendar,
       gradient: "from-purple-500 to-pink-500",
       go: () => goto("/admin/events"),
     },
     {
-      title: "Today's Revenue",
-      value: "฿45,890",
-      change: "+18%",
+      title: "Total Revenue",
+      value: formatCurrency(metrics.totalRevenue),
+      change: "",
       icon: DollarSign,
       gradient: "from-green-500 to-emerald-500",
       go: () => goto("/admin/closure"),
     },
     {
-      title: "Growth Rate",
-      value: "24.5%",
-      change: "+5.2%",
+      title: "Total Staff",
+      value: formatValue(metrics.staffCount),
+      change: "",
       icon: TrendingUp,
       gradient: "from-orange-500 to-red-500",
-      go: () => goto("/admin/menu"),
+      go: () => goto("/admin/users"),
     },
   ];
 
@@ -87,6 +135,7 @@ const AdminDashboard = () => {
         <h1 className="text-2xl sm:text-3xl font-bold mb-2">Admin Dashboard</h1>
         <p className="text-muted-foreground text-sm sm:text-base">Overview of your venue operations</p>
       </div>
+      {metricsError && <p className="text-sm text-destructive">{metricsError}</p>}
 
       {/* Clickable KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
@@ -111,7 +160,9 @@ const AdminDashboard = () => {
               <CardContent>
                 <div className="flex items-baseline justify-between">
                   <h3 className="text-3xl font-bold">{stat.value}</h3>
-                  <span className="text-sm font-medium text-green-500">{stat.change}</span>
+                  {stat.change && (
+                    <span className="text-sm font-medium text-green-500">{stat.change}</span>
+                  )}
                 </div>
               </CardContent>
             </Card>

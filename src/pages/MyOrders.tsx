@@ -39,6 +39,7 @@ type FnbOrder = {
     quantity: number;
     price: number;
     line_total?: number;
+    remark?: string | null;
   }>;
 };
 
@@ -296,13 +297,18 @@ const MyOrders = () => {
           <CardContent>
             <div className="space-y-3">
               {order.items?.map((item, idx) => (
-                <div key={idx} className="flex justify-between text-sm">
-                  <span>
-                    {item.name} x{item.quantity}
-                  </span>
-                  <span className="font-medium">
-                    ฿{((item.line_total ?? item.price * item.quantity) || 0).toFixed(2)}
-                  </span>
+                <div key={idx} className="text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span>
+                      {item.name} ×{item.quantity}
+                    </span>
+                    <span className="font-medium">
+                      ฿{((item.line_total ?? item.price * item.quantity) || 0).toFixed(2)}
+                    </span>
+                  </div>
+                  {item.remark && (
+                    <p className="text-xs text-muted-foreground">Remark: {item.remark}</p>
+                  )}
                 </div>
               ))}
               <div className="pt-2 border-t flex justify-between text-sm">

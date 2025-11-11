@@ -13,19 +13,19 @@ final class DayClosureController
     public function show(Request $request): array
     {
         $this->ensureAdmin($request);
-        $closure = DayClosureService::getToday();
-        $summaryDate = date('Y-m-d');
-        if ($closure) {
-            if ($closure['status'] === 'open') {
-                $summaryDate = $closure['closureDate'];
-            } else {
-                $summaryDate = date('Y-m-d', strtotime($closure['closureDate'] . ' +1 day'));
-            }
-        }
+        $closure = DayClosureService::current();
+        $previousClosure = DayClosureService::latestClosed();
+        $summaryDate = $closure ? $closure['closureDate'] : date('Y-m-d');
+        $nextDate = $closure
+            ? date('Y-m-d', strtotime($closure['closureDate'] . ' +1 day'))
+            : date('Y-m-d');
+
         return [
             'closure' => $closure,
             'summary' => DayClosureService::summary($summaryDate),
             'summaryDate' => $summaryDate,
+            'previousClosure' => $previousClosure,
+            'nextDate' => $nextDate,
         ];
     }
 

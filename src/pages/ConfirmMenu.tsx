@@ -3,26 +3,53 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { UtensilsCrossed } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
 
+type CartItem = {
+  id?: number;
+  name?: string;
+  price?: number;
+  quantity: number;
+  lineTotal?: number;
+  remark?: string;
+};
+
 const ConfirmMenu = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [cartItems, setCartItems] = useState<any[]>([]);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (location.state?.cart) {
-      setCartItems(location.state.cart);
+      const enriched = (location.state.cart as CartItem[]).map((item) => ({
+        ...item,
+        remark: item.remark ?? "",
+      }));
+      setCartItems(enriched);
     } else {
       navigate('/menu');
     }
   }, [location, navigate]);
 
   const getTotalPrice = () => {
-    return cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    return cartItems.reduce((sum, item) => sum + ((item.price ?? 0) * item.quantity), 0);
+  };
+
+  const handleRemarkChange = (index: number, value: string) => {
+    setCartItems((prev) =>
+      prev.map((item, idx) =>
+        idx === index
+          ? {
+              ...item,
+              remark: value.slice(0, 200),
+            }
+          : item,
+      ),
+    );
   };
 
   const handleConfirm = async () => {
@@ -34,11 +61,15 @@ const ConfirmMenu = () => {
     setSubmitting(true);
     try {
       const payload = {
-        items: cartItems.map((item) => ({
-          id: item.id,
-          quantity: item.quantity,
-          price: item.price,
-        })),
+        items: cartItems.map((item) => {
+          const remark = (item.remark ?? "").trim();
+          return {
+            id: item.id,
+            quantity: item.quantity,
+            price: item.price,
+            remark: remark !== "" ? remark : undefined,
+          };
+        }),
       };
 
       const { order } = await api.orderMenu(payload);
@@ -79,12 +110,25 @@ const ConfirmMenu = () => {
         <CardContent className="space-y-6">
           <div className="space-y-3">
             {cartItems.map((item, index) => (
-              <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                <div className="flex-1">
-                  <p className="font-semibold">{item.name}</p>
-                  <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
+              <div key={index} className="p-3 rounded-lg bg-muted/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="font-semibold">{item.name}</p>
+                    <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
+                  </div>
+                  <p className="font-semibold">{(item.price ?? 0) * item.quantity} THB</p>
                 </div>
-                <p className="font-semibold">{item.price * item.quantity} THB</p>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">
+                    Remark (optional, max 200 characters)
+                  </label>
+                  <Textarea
+                    value={item.remark ?? ""}
+                    maxLength={200}
+                    onChange={(event) => handleRemarkChange(index, event.target.value)}
+                    placeholder="Add special instructions..."
+                  />
+                </div>
               </div>
             ))}
           </div>

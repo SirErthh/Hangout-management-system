@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Plus, Minus, ShoppingCart } from "lucide-react";
+import { Plus, Minus, ShoppingCart, AlertCircle } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
 
 type MenuItem = {
@@ -23,6 +24,9 @@ const Menu = () => {
   const [cart, setCart] = useState<Record<number, number>>({});
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checkingReservation, setCheckingReservation] = useState(true);
+  const [hasConfirmedReservation, setHasConfirmedReservation] = useState(false);
+  const [reservationError, setReservationError] = useState<string | null>(null);
 
   const fetchMenu = useCallback(async (signal?: AbortSignal) => {
     if (!signal) {
@@ -71,6 +75,39 @@ const Menu = () => {
     return () => window.removeEventListener("menu-updated", handleRefresh);
   }, [fetchMenu]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadReservationStatus = async () => {
+      try {
+        setCheckingReservation(true);
+        setReservationError(null);
+        const { reservations = [] } = await api.getReservations(true, controller.signal);
+        if (controller.signal.aborted) {
+          return;
+        }
+        const hasConfirmed = reservations.some((reservation: any) =>
+          ["confirmed", "seated"].includes(String(reservation.status ?? "").toLowerCase()),
+        );
+        setHasConfirmedReservation(hasConfirmed);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          handleApiError(error, "Failed to verify reservation status");
+          setReservationError("Unable to verify your reservation status right now.");
+          setHasConfirmedReservation(false);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setCheckingReservation(false);
+        }
+      }
+    };
+
+    loadReservationStatus();
+
+    return () => controller.abort();
+  }, []);
+
   const activeItems = useMemo(
     () => menuItems.filter((item) => item.is_active !== false),
     [menuItems],
@@ -82,7 +119,20 @@ const Menu = () => {
     return { food, drink };
   }, [activeItems]);
 
+  const reservationBlocked =
+    checkingReservation || !!reservationError || !hasConfirmedReservation;
+
   const updateCart = (itemId: number, delta: number) => {
+    if (reservationBlocked) {
+      if (checkingReservation) {
+        toast.error("Checking your reservation status. Please wait a moment.");
+      } else if (reservationError) {
+        toast.error(reservationError);
+      } else {
+        toast.error("Please reserve a table and wait for confirmation before ordering food & beverages.");
+      }
+      return;
+    }
     setCart((prev) => {
       const nextQty = (prev[itemId] || 0) + delta;
       if (nextQty <= 0) {
@@ -106,6 +156,16 @@ const Menu = () => {
       toast.error("Your cart is empty");
       return;
     }
+    if (reservationBlocked) {
+      if (checkingReservation) {
+        toast.error("Checking your reservation status. Please wait a moment.");
+      } else if (reservationError) {
+        toast.error(reservationError);
+      } else {
+        toast.error("Please reserve a table and wait for confirmation before ordering food & beverages.");
+      }
+      return;
+    }
 
     const orderItems = Object.entries(cart).map(([itemId, qty]) => {
       const item = activeItems.find((i) => i.id === Number(itemId));
@@ -115,6 +175,7 @@ const Menu = () => {
         price: item?.price,
         quantity: Number(qty),
         lineTotal: (item?.price || 0) * Number(qty),
+        remark: "",
       };
     });
 
@@ -158,11 +219,21 @@ const Menu = () => {
           <div className="flex items-center justify-between">
             {qty > 0 ? (
               <div className="flex items-center gap-3">
-                <Button size="icon" variant="outline" onClick={() => updateCart(item.id, -1)}>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => updateCart(item.id, -1)}
+                  disabled={reservationBlocked}
+                >
                   <Minus className="h-4 w-4" />
                 </Button>
                 <span className="font-semibold text-lg w-8 text-center">{qty}</span>
-                <Button size="icon" variant="outline" onClick={() => updateCart(item.id, 1)}>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => updateCart(item.id, 1)}
+                  disabled={reservationBlocked}
+                >
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
@@ -171,6 +242,7 @@ const Menu = () => {
                 variant="outline"
                 className="gap-2"
                 onClick={() => updateCart(item.id, 1)}
+                disabled={reservationBlocked}
               >
                 <Plus className="h-4 w-4" />
                 Add
@@ -201,12 +273,36 @@ const Menu = () => {
           size="lg"
           className="gap-2 bg-gradient-primary hover:opacity-90"
           onClick={handleCheckout}
-          disabled={getTotalItems() === 0}
+          disabled={getTotalItems() === 0 || reservationBlocked}
         >
           <ShoppingCart className="h-4 w-4" />
           Checkout ({getTotalItems()} items)
         </Button>
       </div>
+
+      {checkingReservation && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>Checking your reservation status...</AlertDescription>
+        </Alert>
+      )}
+
+      {reservationError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{reservationError}</AlertDescription>
+        </Alert>
+      )}
+
+      {!checkingReservation && !reservationError && !hasConfirmedReservation && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            You need a confirmed table reservation before ordering food & beverages. Please reserve a table and wait
+            for staff confirmation first.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Tabs defaultValue="food" className="space-y-6">
         <TabsList className="grid grid-cols-2 sm:w-[360px]">

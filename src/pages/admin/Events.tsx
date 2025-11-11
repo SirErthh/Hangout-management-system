@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -38,9 +39,23 @@ type EventItem = {
   ticketCodePrefix?: string;
   artist?: string;
   status?: string;
+  capacity?: number | null;
 };
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+
+const STATUS_BADGES: Record<
+  string,
+  {
+    label: string;
+    classes: string;
+  }
+> = {
+  draft: { label: "Draft", classes: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+  published: { label: "Published", classes: "bg-emerald-100 text-emerald-800 border-emerald-200" },
+  ended: { label: "Ended", classes: "bg-gray-200 text-gray-700 border-gray-300" },
+  canceled: { label: "Canceled", classes: "bg-red-100 text-red-800 border-red-200" },
+};
 
 const AdminEvents = () => {
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -52,6 +67,7 @@ const AdminEvents = () => {
   const [imagePreview, setImagePreview] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<EventItem | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     artist: "",
@@ -60,13 +76,14 @@ const AdminEvents = () => {
     description: "",
     imageUrl: "",
     ticketCodePrefix: "",
+    capacity: "",
   });
 
   const loadEvents = useCallback(
     async (signal?: AbortSignal) => {
       setLoading(true);
       try {
-        const { events: fetched } = await api.getEvents(signal);
+        const { events: fetched } = await api.getEvents({ signal });
         if (!signal?.aborted) {
           setEvents(fetched ?? []);
         }
@@ -101,6 +118,7 @@ const AdminEvents = () => {
         description: "",
         imageUrl: "",
         ticketCodePrefix: "",
+        capacity: "",
       });
       setImagePreview("");
     }
@@ -167,11 +185,13 @@ const AdminEvents = () => {
     setEditingEvent(null);
     setFormData({
       name: "",
+      artist: "",
       date: "",
       price: "",
       description: "",
       imageUrl: "",
       ticketCodePrefix: "",
+      capacity: "",
     });
     setDialogOpen(true);
   };
@@ -186,6 +206,7 @@ const AdminEvents = () => {
       description: event.description ?? "",
       imageUrl: event.image_url ?? "",
       ticketCodePrefix: (event.ticketCodePrefix ?? "").toUpperCase(),
+      capacity: event.capacity !== undefined && event.capacity !== null ? String(event.capacity) : "",
     });
     setImagePreview(resolvePreview(event.image_url));
     setDialogOpen(true);
@@ -199,6 +220,11 @@ const AdminEvents = () => {
       toast.error("Invalid price");
       return;
     }
+    const capacityNum = formData.capacity.trim() === "" ? null : Number(formData.capacity);
+    if (capacityNum !== null && (Number.isNaN(capacityNum) || capacityNum < 0)) {
+      toast.error("Invalid capacity");
+      return;
+    }
 
     const payload = {
       name: formData.name.trim(),
@@ -208,6 +234,7 @@ const AdminEvents = () => {
       description: formData.description,
       image_url: formData.imageUrl,
       ticketCodePrefix: formData.ticketCodePrefix.trim().toUpperCase(),
+      capacity: capacityNum,
     };
 
     if (!payload.name || !payload.ticketCodePrefix || payload.ticketCodePrefix.length !== 3) {
@@ -243,11 +270,13 @@ const AdminEvents = () => {
       setEditingEvent(null);
       setFormData({
         name: "",
+        artist: "",
         date: "",
         price: "",
         description: "",
         imageUrl: "",
         ticketCodePrefix: "",
+        capacity: "",
       });
       setImagePreview("");
     } catch (error) {
@@ -277,6 +306,23 @@ const AdminEvents = () => {
       handleApiError(error, "Failed to delete event");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleStatusChange = async (event: EventItem, nextStatus: string) => {
+    if (event.status === nextStatus) {
+      return;
+    }
+    setStatusUpdatingId(event.id);
+    try {
+      await api.updateEventStatus(event.id, nextStatus);
+      await loadEvents();
+      notifyEventsUpdated();
+      toast.success(nextStatus === "ended" ? "Event hidden from customers" : "Event published");
+    } catch (error) {
+      handleApiError(error, "Failed to update event status");
+    } finally {
+      setStatusUpdatingId(null);
     }
   };
 
@@ -381,6 +427,18 @@ const AdminEvents = () => {
                   required
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="capacity">Capacity</Label>
+                <Input
+                  id="capacity"
+                  type="number"
+                  min="0"
+                  value={formData.capacity}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, capacity: e.target.value }))}
+                  placeholder="e.g. 250"
+                />
+                <p className="text-xs text-muted-foreground">Optional. Determines total seats for the event.</p>
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
@@ -444,45 +502,71 @@ const AdminEvents = () => {
         </Card>
       ) : (
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {events.map((event) => (
-            <Card key={event.id} className="glass-effect border-2 overflow-hidden">
-              {renderThumb(event.image_url, event.name)}
-              <CardHeader className="space-y-2">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  {event.name}
-                </CardTitle>
-                <CardDescription className="space-y-1">
-                  <div>
-                    <span className="font-semibold">Date:</span>{" "}
-                    {event.date ? new Date(event.date).toLocaleDateString() : "TBA"}
+          {events.map((event) => {
+            const statusKey = (event.status ?? "published").toLowerCase();
+            const statusInfo = STATUS_BADGES[statusKey] ?? STATUS_BADGES.published;
+            const isEnded = statusKey === "ended";
+            const isUpdating = statusUpdatingId === event.id;
+            return (
+              <Card key={event.id} className="glass-effect border-2 overflow-hidden">
+                {renderThumb(event.image_url, event.name)}
+                <CardHeader className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <CardTitle className="text-xl flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      {event.name}
+                    </CardTitle>
+                    <Badge className={statusInfo.classes}>{statusInfo.label}</Badge>
                   </div>
-                  <div>
-                    <span className="font-semibold">Price:</span> ฿{event.price}
+                  <CardDescription className="space-y-1">
+                    <div>
+                      <span className="font-semibold">Date:</span>{" "}
+                      {event.date ? new Date(event.date).toLocaleDateString() : "TBA"}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Price:</span> ฿{event.price}
+                    </div>
+                    {event.capacity !== null && event.capacity !== undefined && (
+                      <div>
+                        <span className="font-semibold">Capacity:</span> {event.capacity}
+                      </div>
+                    )}
+                    <div>
+                      <span className="font-semibold">Ticket Code Prefix:</span>{" "}
+                      {event.ticketCodePrefix ?? "—"}
+                    </div>
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground min-h-[3rem]">
+                    {event.description || "No description provided."}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="secondary" className="flex-1 min-w-[7rem]" onClick={() => handleEdit(event)}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant={isEnded ? "outline" : "ghost"}
+                      className="flex-1 min-w-[7rem]"
+                      onClick={() => handleStatusChange(event, isEnded ? "published" : "ended")}
+                      disabled={isUpdating}
+                    >
+                      {isUpdating ? "Updating..." : isEnded ? "Reopen" : "End Event"}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      className="flex-1 min-w-[7rem]"
+                      onClick={() => deleteEvent(event)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
                   </div>
-                  <div>
-                    <span className="font-semibold">Ticket Code Prefix:</span>{" "}
-                    {event.ticketCodePrefix ?? "—"}
-                  </div>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground min-h-[3rem]">
-                  {event.description || "No description provided."}
-                </p>
-                <div className="flex gap-2">
-                  <Button variant="secondary" className="flex-1" onClick={() => handleEdit(event)}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
-                  </Button>
-                  <Button variant="destructive" className="flex-1" onClick={() => deleteEvent(event)}>
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
       </div>

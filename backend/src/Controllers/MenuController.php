@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Services\MenuService;
 use App\Services\FnbService;
+use App\Services\ReservationService;
 use App\Support\Request;
 use RuntimeException;
 
@@ -49,23 +50,68 @@ final class MenuController
             throw new RuntimeException('Authentication required', 401);
         }
 
+        if (!ReservationService::userHasConfirmedReservation((int)$user['id'])) {
+            throw new RuntimeException('You need a confirmed reservation before ordering food & beverage', 422);
+        }
+
+        $activeReservation = ReservationService::latestActiveReservation((int)$user['id']);
+        if (!$activeReservation) {
+            throw new RuntimeException('No active reservation found for your account', 422);
+        }
+
         $items = $payload['items'] ?? [];
         if (!is_array($items) || empty($items)) {
             throw new RuntimeException('Cart is empty', 422);
         }
 
+        $sanitizedItems = [];
         $total = 0.0;
         foreach ($items as $item) {
-            if (!isset($item['id'], $item['price'], $item['quantity'])) {
+            if (!isset($item['id'], $item['quantity'])) {
                 throw new RuntimeException('Invalid order payload', 422);
             }
-            $total += (float)$item['price'] * (int)$item['quantity'];
+
+            $menuItem = MenuService::find((int)$item['id']);
+            if (!$menuItem || !$menuItem['is_active']) {
+                throw new RuntimeException('Menu item is unavailable', 422);
+            }
+
+            $quantity = (int)$item['quantity'];
+            if ($quantity <= 0) {
+                throw new RuntimeException('Quantity must be greater than zero', 422);
+            }
+
+            $remark = null;
+            if (isset($item['remark'])) {
+                $trimmed = trim((string)$item['remark']);
+                if ($trimmed !== '') {
+                    if (mb_strlen($trimmed) > 200) {
+                        throw new RuntimeException('Remark must be 200 characters or less', 422);
+                    }
+                    $remark = $trimmed;
+                }
+            }
+
+            $sanitizedItems[] = [
+                'menu_item_id' => (int)$menuItem['id'],
+                'id' => (int)$menuItem['id'],
+                'price' => (float)$menuItem['price'],
+                'quantity' => $quantity,
+                'remark' => $remark,
+            ];
+
+            $total += (float)$menuItem['price'] * $quantity;
+        }
+
+        $tableId = $payload['table_id'] ?? $activeReservation['table_id'] ?? null;
+        if ($tableId === null) {
+            throw new RuntimeException('Your reservation must be assigned to a table before ordering food & beverage', 422);
         }
 
         $order = FnbService::createOrder([
             'user_id' => $user['id'],
-            'table_id' => $payload['table_id'] ?? null,
-            'items' => $items,
+            'table_id' => $tableId,
+            'items' => $sanitizedItems,
             'total' => $total,
             'note' => $payload['note'] ?? null,
         ]);

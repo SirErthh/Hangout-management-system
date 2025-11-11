@@ -15,8 +15,8 @@ final class FnbService
         $pdo->beginTransaction();
 
         $orderStmt = $pdo->prepare(
-            'INSERT INTO FNB_ORDER (user_id, venue_table_id, status, created_at, note, total_baht, payment_method)
-             VALUES (:user_id, :venue_table_id, :status, NOW(), :note, :total_baht, :payment_method)'
+            'INSERT INTO FNB_ORDER (user_id, venue_table_id, status, created_at, note, total_baht, payment_method, paid_by_user_id)
+             VALUES (:user_id, :venue_table_id, :status, NOW(), :note, :total_baht, :payment_method, :paid_by_user_id)'
         );
 
         $orderStmt->execute([
@@ -26,27 +26,69 @@ final class FnbService
             'note' => $data['note'] ?? null,
             'total_baht' => $data['total'],
             'payment_method' => 'cash',
+            'paid_by_user_id' => $data['user_id'],
         ]);
 
         $orderId = (int)$pdo->lastInsertId();
 
         $itemStmt = $pdo->prepare(
-            'INSERT INTO FNB_ORDER_ITEM (order_id, menu_item_id, quantity, unit_price_baht, line_total_baht, status)
-             VALUES (:order_id, :menu_item_id, :quantity, :unit_price_baht, :line_total_baht, :status)'
+            'INSERT INTO FNB_ORDER_ITEM (order_id, menu_item_id, quantity, unit_price_baht, line_total_baht, status, remark)
+             VALUES (:order_id, :menu_item_id, :quantity, :unit_price_baht, :line_total_baht, :status, :remark)'
         );
 
+        $menuLookup = $pdo->prepare('SELECT id, price FROM MENU_ITEM WHERE id = :id LIMIT 1');
+
+        $insertedItems = 0;
+
         foreach ($data['items'] as $item) {
+            $menuItemId = $item['menu_item_id'] ?? $item['id'] ?? null;
+            if ($menuItemId === null) {
+                throw new RuntimeException('Menu item reference missing', 422);
+            }
+            $menuItemId = (int)$menuItemId;
+
+            $menuLookup->execute(['id' => $menuItemId]);
+            $menuRow = $menuLookup->fetch(PDO::FETCH_ASSOC);
+            if (!$menuRow) {
+                throw new RuntimeException('Menu item not found', 422);
+            }
+
+            $quantity = isset($item['quantity']) ? (int)$item['quantity'] : 0;
+            if ($quantity <= 0) {
+                throw new RuntimeException('Invalid quantity', 422);
+            }
+
+            $unitPrice = (float)$menuRow['price'];
+
+            $remark = null;
+            if (isset($item['remark'])) {
+                $trimmed = trim((string)$item['remark']);
+                if ($trimmed !== '') {
+                    $remark = mb_substr($trimmed, 0, 200);
+                }
+            }
+
             $itemStmt->execute([
                 'order_id' => $orderId,
-                'menu_item_id' => $item['id'],
-                'quantity' => $item['quantity'],
-                'unit_price_baht' => $item['price'],
-                'line_total_baht' => $item['price'] * $item['quantity'],
+                'menu_item_id' => $menuItemId,
+                'quantity' => $quantity,
+                'unit_price_baht' => $unitPrice,
+                'line_total_baht' => $unitPrice * $quantity,
                 'status' => 'ordered',
+                'remark' => $remark,
             ]);
+
+            $insertedItems += $itemStmt->rowCount();
+        }
+
+        if ($insertedItems === 0) {
+            $pdo->rollBack();
+            throw new RuntimeException('Unable to add order items. Please try again.', 500);
         }
 
         $pdo->commit();
+
+        error_log(sprintf('[fnb_order] order %d saved with %d items', $orderId, $insertedItems));
 
         return self::find($orderId) ?? [];
     }
@@ -101,10 +143,21 @@ final class FnbService
             throw new RuntimeException('Invalid status', 422);
         }
 
-        $stmt = Database::connection()->prepare('UPDATE FNB_ORDER SET status = :status WHERE id = :id');
+        $stmt = Database::connection()->prepare(
+            'UPDATE FNB_ORDER
+             SET status = :status,
+                 paid_at = CASE
+                     WHEN :status_completed = \'completed\' THEN NOW()
+                     WHEN :status_cancelled = \'cancelled\' THEN NULL
+                     ELSE paid_at
+                 END
+             WHERE id = :id'
+        );
         $stmt->execute([
             'id' => $orderId,
             'status' => $status,
+            'status_completed' => $status,
+            'status_cancelled' => $status,
         ]);
 
         return self::find($orderId) ?? [];
@@ -147,7 +200,8 @@ final class FnbService
                     i.quantity,
                     i.unit_price_baht,
                     i.line_total_baht,
-                    i.status
+                    i.status,
+                    i.remark
              FROM FNB_ORDER_ITEM i
              INNER JOIN MENU_ITEM m ON m.id = i.menu_item_id
              WHERE i.order_id = :order_id'
@@ -171,6 +225,7 @@ final class FnbService
                 'price' => (float)$item['unit_price_baht'],
                 'line_total' => (float)$item['line_total_baht'],
                 'status' => $item['status'],
+                'remark' => $item['remark'],
             ], $items),
         ];
     }

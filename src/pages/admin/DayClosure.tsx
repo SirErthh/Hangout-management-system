@@ -3,6 +3,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { DollarSign, CheckCircle } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
@@ -14,23 +24,49 @@ type ClosureSummary = {
   cash: number;
 };
 
+type ClosureRecord = {
+  id: number;
+  closureDate: string;
+  openedAt: string;
+  closedAt: string | null;
+  status: string;
+  ticketSales: number;
+  fnbSales: number;
+  promptpay: number;
+  note?: string | null;
+};
+
 const DayClosure = () => {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [summary, setSummary] = useState<ClosureSummary | null>(null);
   const [summaryDate, setSummaryDate] = useState<string>(new Date().toISOString().slice(0, 10));
-  const [closure, setClosure] = useState<any | null>(null);
+  const [closure, setClosure] = useState<ClosureRecord | null>(null);
   const [note, setNote] = useState("");
+  const [previousClosure, setPreviousClosure] = useState<ClosureRecord | null>(null);
+  const [nextDate, setNextDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [startDialogOpen, setStartDialogOpen] = useState(false);
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const [pendingStartDate, setPendingStartDate] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { closure: existing, summary: fetched, summaryDate } = await api.getDayClosure();
+      const {
+        closure: existing,
+        summary: fetched,
+        summaryDate: apiSummaryDate,
+        previousClosure,
+        nextDate: apiNextDate,
+      } =
+        await api.getDayClosure();
       setSummary(fetched);
-      setSummaryDate(summaryDate);
+      setSummaryDate(apiSummaryDate);
       setClosure(existing);
       setNote(existing?.note ?? "");
+      setPreviousClosure(previousClosure ?? null);
+      setNextDate(apiNextDate ?? apiSummaryDate);
     } catch (error) {
       handleApiError(error, "Failed to load day closure data");
     } finally {
@@ -43,45 +79,60 @@ const DayClosure = () => {
   }, [load]);
 
   const handleClosureSubmit = async () => {
-    if (!window.confirm("Are you sure you want to close the current day?")) {
-      return;
-    }
     setIsSubmitting(true);
     try {
-      const { closure: closed, summary: refreshed, summaryDate } = await api.closeDay({
+      const {
+        closure: closed,
+        summary: refreshed,
+        summaryDate: apiSummaryDate,
+        nextDate: apiNextDate,
+        previousClosure,
+      } = await api.closeDay({
         note,
         date: closure?.closureDate ?? summaryDate,
       });
       setClosure(closed);
       setSummary(refreshed);
-      setSummaryDate(summaryDate);
+      setSummaryDate(apiSummaryDate);
+      setPreviousClosure(previousClosure ?? closed ?? null);
+      setNextDate(apiNextDate ?? apiSummaryDate);
       toast.success("Day closed successfully!");
+      await load();
     } catch (error) {
       handleApiError(error, "Failed to close the day");
     } finally {
       setIsSubmitting(false);
+      setCloseDialogOpen(false);
     }
   };
 
   const handleStartDay = async (dateOverride?: string) => {
     const date = dateOverride ?? summaryDate;
-    if (!window.confirm(`Start a new day for ${new Date(date).toLocaleDateString()}?`)) {
-      return;
-    }
     setIsStarting(true);
     try {
-      const { closure: opened, summary: refreshed, summaryDate } = await api.startDay({
+      const {
+        closure: opened,
+        summary: refreshed,
+        summaryDate: apiSummaryDate,
+        nextDate: apiNextDate,
+        previousClosure,
+      } = await api.startDay({
         date,
       });
       setClosure(opened);
       setSummary(refreshed);
-      setSummaryDate(summaryDate);
+      setSummaryDate(apiSummaryDate);
       setNote(opened?.note ?? "");
+      setPreviousClosure(previousClosure ?? null);
+      setNextDate(apiNextDate ?? apiSummaryDate);
       toast.success("Day started successfully!");
+      await load();
     } catch (error) {
       handleApiError(error, "Failed to start the day");
     } finally {
       setIsStarting(false);
+      setStartDialogOpen(false);
+      setPendingStartDate(null);
     }
   };
 
@@ -94,12 +145,10 @@ const DayClosure = () => {
   const isOpen = closure?.status === "open";
   const isClosed = closure?.status === "closed";
   const showStartButton = !closure || closure?.status === "closed";
-  const nextDayDate = useMemo(() => {
-    if (!closure) return summaryDate;
-    const base = new Date(closure.closureDate);
-    base.setDate(base.getDate() + 1);
-    return base.toISOString().slice(0, 10);
-  }, [closure, summaryDate]);
+  const startTargetDate = useMemo(
+    () => (isClosed ? nextDate : summaryDate),
+    [isClosed, nextDate, summaryDate],
+  );
 
   return (
     <div className="p-6 space-y-6 animate-slide-up">
@@ -123,30 +172,30 @@ const DayClosure = () => {
         )}
       </div>
 
-      {isClosed && (
+      {previousClosure && (
         <Card className="glass-effect border-2">
           <CardHeader>
-            <CardTitle>Yesterday Summary</CardTitle>
+            <CardTitle>Last Closed Day Summary</CardTitle>
             <CardDescription>
-              Closed on {new Date(closure.closureDate).toLocaleDateString()}
+              Closed on {new Date(previousClosure.closureDate).toLocaleDateString()}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             <div>
               <p className="text-sm text-muted-foreground">Ticket Sales</p>
-              <p className="text-2xl font-semibold">฿{closure.ticketSales.toLocaleString()}</p>
+              <p className="text-2xl font-semibold">฿{previousClosure.ticketSales.toLocaleString()}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">F&B Sales</p>
-              <p className="text-2xl font-semibold">฿{closure.fnbSales.toLocaleString()}</p>
+              <p className="text-2xl font-semibold">฿{previousClosure.fnbSales.toLocaleString()}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">PromptPay / Cash</p>
-              <p className="text-xl font-semibold">฿{closure.promptpay.toLocaleString()}</p>
+              <p className="text-xl font-semibold">฿{previousClosure.promptpay.toLocaleString()}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Note</p>
-              <p className="text-sm">{closure.note ?? "-"}</p>
+              <p className="text-sm">{previousClosure.note ?? "-"}</p>
             </div>
           </CardContent>
         </Card>
@@ -216,7 +265,10 @@ const DayClosure = () => {
           <div className="flex flex-col sm:flex-row gap-3">
             {showStartButton && (
               <Button
-                onClick={() => handleStartDay(isClosed ? nextDayDate : summaryDate)}
+                onClick={() => {
+                  setPendingStartDate(startTargetDate);
+                  setStartDialogOpen(true);
+                }}
                 disabled={isStarting || loading}
                 variant="outline"
                 className="flex-1"
@@ -227,17 +279,60 @@ const DayClosure = () => {
             )}
             {isOpen && (
               <Button
-                onClick={handleClosureSubmit}
+                onClick={() => setCloseDialogOpen(true)}
                 disabled={isSubmitting || loading}
                 className="flex-1"
                 size="lg"
               >
-                {isSubmitting ? "Closing..." : "Complete Day Closure"}
+                {isSubmitting ? "Closing..." : "Close Day"}
               </Button>
             )}
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={startDialogOpen} onOpenChange={(open) => {
+        setStartDialogOpen(open);
+        if (!open) setPendingStartDate(null);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Start Day</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingStartDate
+                ? `Start a new operational day for ${new Date(pendingStartDate).toLocaleDateString()}?`
+                : "Start a new operational day?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isStarting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isStarting}
+              onClick={() => handleStartDay(pendingStartDate ?? summaryDate)}
+            >
+              {isStarting ? "Starting..." : "Start Day"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Close Day</AlertDialogTitle>
+            <AlertDialogDescription>
+              Closing the day will finalize today&apos;s sales, release all table assignments, and mark in-progress
+              reservations as completed. This cannot be undone. Proceed?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={isSubmitting} onClick={handleClosureSubmit}>
+              {isSubmitting ? "Closing..." : "Close Day"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

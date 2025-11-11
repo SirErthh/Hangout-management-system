@@ -11,9 +11,12 @@ use RuntimeException;
 
 final class EventController
 {
-    public function index(): array
+    public function index(Request $request): array
     {
-        return ['events' => EventService::all()];
+        $activeFlag = strtolower((string)$request->query('active', '0'));
+        $onlyActive = in_array($activeFlag, ['1', 'true', 'yes'], true);
+
+        return ['events' => EventService::all($onlyActive)];
     }
 
     public function show(Request $request): array
@@ -57,6 +60,20 @@ final class EventController
         $id = (int)$request->param('id');
         EventService::delete($id);
         return ['message' => 'Event deleted'];
+    }
+
+    public function updateStatus(Request $request): array
+    {
+        $this->ensureAdmin($request);
+        $id = (int)$request->param('id');
+        $status = strtolower(trim((string)($request->input('status') ?? '')));
+        if ($status === '') {
+            throw new RuntimeException('Status is required', 422);
+        }
+
+        $event = EventService::updateStatus($id, $status);
+
+        return ['event' => $event];
     }
 
     public function orderTickets(Request $request): array

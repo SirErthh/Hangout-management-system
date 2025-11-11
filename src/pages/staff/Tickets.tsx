@@ -3,10 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Ticket, CheckCircle, XCircle, Search, Eye, Loader2 } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
+import { Textarea } from "@/components/ui/textarea";
 
 type TicketOrder = {
   id: number;
@@ -24,6 +25,12 @@ const StaffTickets = () => {
   const [orders, setOrders] = useState<TicketOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [ticketNoteDialog, setTicketNoteDialog] = useState<{ orderId: number; code: string } | null>(null);
+  const [ticketNote, setTicketNote] = useState("");
+  const [confirmingTicketNote, setConfirmingTicketNote] = useState(false);
+  const [confirmAllDialog, setConfirmAllDialog] = useState<number | null>(null);
+  const [confirmAllNote, setConfirmAllNote] = useState("");
+  const [confirmingAllNotes, setConfirmingAllNotes] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -64,23 +71,71 @@ const StaffTickets = () => {
     }
   };
 
-  const confirmTicket = async (orderId: number, ticketCode: string) => {
+  const confirmTicket = async (orderId: number, ticketCode: string, note?: string) => {
     try {
-      const { order } = await api.confirmTicket(orderId, ticketCode);
+      const { order } = await api.confirmTicket(orderId, ticketCode, note);
       replaceOrder(order);
       toast.success(`Ticket ${ticketCode} confirmed`);
+      return true;
     } catch (error) {
       handleApiError(error, "Failed to confirm ticket");
+      return false;
     }
   };
 
-  const confirmAllTickets = async (orderId: number) => {
+  const confirmAllTickets = async (orderId: number, note?: string) => {
     try {
-      const { order } = await api.confirmAllTickets(orderId);
+      const { order } = await api.confirmAllTickets(orderId, note);
       replaceOrder(order);
       toast.success("All tickets confirmed");
+      return true;
     } catch (error) {
       handleApiError(error, "Failed to confirm all tickets");
+      return false;
+    }
+  };
+
+  const openTicketNoteDialog = (orderId: number, code: string) => {
+    setTicketNoteDialog({ orderId, code });
+    setTicketNote("");
+  };
+
+  const handleTicketNoteConfirm = async () => {
+    if (!ticketNoteDialog) return;
+    setConfirmingTicketNote(true);
+    try {
+      const payload = ticketNote.trim();
+      const succeeded = await confirmTicket(
+        ticketNoteDialog.orderId,
+        ticketNoteDialog.code,
+        payload.length > 0 ? payload : undefined,
+      );
+      if (succeeded) {
+        setTicketNoteDialog(null);
+        setTicketNote("");
+      }
+    } finally {
+      setConfirmingTicketNote(false);
+    }
+  };
+
+  const openConfirmAllDialog = (orderId: number) => {
+    setConfirmAllDialog(orderId);
+    setConfirmAllNote("");
+  };
+
+  const handleConfirmAll = async () => {
+    if (confirmAllDialog === null) return;
+    setConfirmingAllNotes(true);
+    try {
+      const payload = confirmAllNote.trim();
+      const succeeded = await confirmAllTickets(confirmAllDialog, payload.length > 0 ? payload : undefined);
+      if (succeeded) {
+        setConfirmAllDialog(null);
+        setConfirmAllNote("");
+      }
+    } finally {
+      setConfirmingAllNotes(false);
     }
   };
 
@@ -117,7 +172,8 @@ const StaffTickets = () => {
   }, [orders]);
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
+    <>
+      <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold mb-2">Ticket Orders</h1>
@@ -228,7 +284,7 @@ const StaffTickets = () => {
                                 {order.status === "pending" && !isConfirmed && (
                                   <Button
                                     size="sm"
-                                    onClick={() => confirmTicket(order.id, code)}
+                                    onClick={() => openTicketNoteDialog(order.id, code)}
                                     className="bg-green-500 hover:bg-green-600"
                                   >
                                     <CheckCircle className="h-4 w-4" />
@@ -241,7 +297,7 @@ const StaffTickets = () => {
                         </div>
                         {order.status === "pending" && (
                           <Button
-                            onClick={() => confirmAllTickets(order.id)}
+                            onClick={() => openConfirmAllDialog(order.id)}
                             className="w-full bg-green-500 hover:bg-green-600"
                           >
                             Confirm All Tickets
@@ -267,7 +323,96 @@ const StaffTickets = () => {
           })}
         </div>
       )}
-    </div>
+      </div>
+
+      <Dialog
+        open={!!ticketNoteDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTicketNoteDialog(null);
+            setTicketNote("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Ticket</DialogTitle>
+            <DialogDescription>
+              {ticketNoteDialog ? `Ticket code ${ticketNoteDialog.code}` : "Confirm ticket"}
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={ticketNote}
+            onChange={(event) => setTicketNote(event.target.value)}
+            placeholder="Optional note..."
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setTicketNoteDialog(null);
+                setTicketNote("");
+              }}
+              disabled={confirmingTicketNote}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleTicketNoteConfirm} disabled={confirmingTicketNote}>
+              {confirmingTicketNote ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle className="h-4 w-4 mr-2" />
+              )}
+              Confirm Ticket
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={confirmAllDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmAllDialog(null);
+            setConfirmAllNote("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm All Tickets</DialogTitle>
+            <DialogDescription>
+              {confirmAllDialog ? `Order #${confirmAllDialog}` : "Confirm all tickets"}
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={confirmAllNote}
+            onChange={(event) => setConfirmAllNote(event.target.value)}
+            placeholder="Optional note for this batch..."
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setConfirmAllDialog(null);
+                setConfirmAllNote("");
+              }}
+              disabled={confirmingAllNotes}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmAll} disabled={confirmingAllNotes}>
+              {confirmingAllNotes ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle className="h-4 w-4 mr-2" />
+              )}
+              Confirm All
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

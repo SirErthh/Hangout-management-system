@@ -10,14 +10,18 @@ use RuntimeException;
 
 final class EventService
 {
-    public static function all(): array
+    public static function all(bool $onlyActive = false): array
     {
-        $stmt = Database::connection()->query(
-            'SELECT id, title, artist, status, cover_img, description, ticket_price, starts_at, ends_at, ticket_code_prefix, max_capacity
-             FROM EVENTS
-             ORDER BY starts_at ASC'
-        );
+        $sql = 'SELECT id, title, artist, status, cover_img, description, ticket_price, starts_at, ends_at, ticket_code_prefix, max_capacity
+                FROM EVENTS';
 
+        if ($onlyActive) {
+            $sql .= ' WHERE status = "published" AND (ends_at IS NULL OR ends_at >= NOW())';
+        }
+
+        $sql .= ' ORDER BY starts_at ASC';
+
+        $stmt = Database::connection()->query($sql);
         $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         return array_map(static fn(array $event) => self::transform($event), $events);
@@ -40,6 +44,8 @@ final class EventService
     public static function create(array $data): array
     {
         $pdo = Database::connection();
+        $capacity = array_key_exists('capacity', $data) ? $data['capacity'] : null;
+        $capacityValue = $capacity !== null ? (int)$capacity : null;
         $stmt = $pdo->prepare(
             'INSERT INTO EVENTS (title, artist, status, cover_img, description, ticket_price, capacity_mode, capacity_fixed, starts_at, ends_at, ticket_code_prefix, max_capacity)
              VALUES (:title, :artist, :status, :cover_img, :description, :ticket_price, :capacity_mode, :capacity_fixed, :starts_at, :ends_at, :ticket_code_prefix, :max_capacity)'
@@ -53,11 +59,11 @@ final class EventService
             'description' => $data['description'] ?? '',
             'ticket_price' => $data['price'],
             'capacity_mode' => 'fixed',
-            'capacity_fixed' => $data['capacity'] ?? 0,
+            'capacity_fixed' => $capacityValue ?? 0,
             'starts_at' => $data['starts_at'],
             'ends_at' => $data['ends_at'],
             'ticket_code_prefix' => strtoupper(substr($data['ticket_code_prefix'] ?? 'HAN', 0, 3)),
-            'max_capacity' => $data['capacity'] ?? 0,
+            'max_capacity' => $capacityValue,
         ]);
 
         $id = (int)$pdo->lastInsertId();
@@ -68,6 +74,8 @@ final class EventService
     public static function update(int $id, array $data): array
     {
         $pdo = Database::connection();
+        $capacity = array_key_exists('capacity', $data) ? $data['capacity'] : null;
+        $capacityValue = $capacity !== null ? (int)$capacity : null;
         $stmt = $pdo->prepare(
             'UPDATE EVENTS
              SET title = :title,
@@ -79,7 +87,8 @@ final class EventService
                  starts_at = :starts_at,
                  ends_at = :ends_at,
                  ticket_code_prefix = :ticket_code_prefix,
-                 max_capacity = :max_capacity
+                 max_capacity = :max_capacity,
+                 capacity_fixed = :capacity_fixed
              WHERE id = :id'
         );
 
@@ -94,7 +103,8 @@ final class EventService
             'starts_at' => $data['starts_at'],
             'ends_at' => $data['ends_at'],
             'ticket_code_prefix' => strtoupper(substr($data['ticket_code_prefix'] ?? 'HAN', 0, 3)),
-            'max_capacity' => $data['capacity'] ?? 0,
+            'max_capacity' => $capacityValue,
+            'capacity_fixed' => $capacityValue ?? 0,
         ]);
 
         return self::find($id) ?? [];
@@ -114,6 +124,8 @@ final class EventService
 
             if ($reservationIds) {
                 self::deleteReservationTables($pdo, $reservationIds);
+                self::deleteReservationLogs($pdo, $reservationIds);
+                self::deleteSeatingSessions($pdo, $reservationIds);
             }
             $pdo->prepare('DELETE FROM TABLE_RESERVATION WHERE event_id = :event_id')
                 ->execute(['event_id' => $id]);
@@ -138,6 +150,27 @@ final class EventService
         }
     }
 
+    public static function updateStatus(int $id, string $status): array
+    {
+        $allowed = ['draft', 'published', 'ended', 'canceled'];
+        if (!in_array($status, $allowed, true)) {
+            throw new RuntimeException('Invalid event status', 422);
+        }
+
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare('UPDATE EVENTS SET status = :status WHERE id = :id');
+        $stmt->execute([
+            'status' => $status,
+            'id' => $id,
+        ]);
+
+        if ($stmt->rowCount() === 0) {
+            throw new RuntimeException('Event not found', 404);
+        }
+
+        return self::find($id) ?? [];
+    }
+
     private static function transform(array $row): array
     {
         $startsAt = $row['starts_at'] ? (new DateTimeImmutable($row['starts_at'])) : null;
@@ -154,7 +187,7 @@ final class EventService
             'starts_at' => $row['starts_at'],
             'ends_at' => $row['ends_at'],
             'ticketCodePrefix' => $row['ticket_code_prefix'] ?: 'HAN',
-            'max_capacity' => $row['max_capacity'],
+            'capacity' => $row['max_capacity'] !== null ? (int)$row['max_capacity'] : null,
         ];
     }
 
@@ -177,6 +210,30 @@ final class EventService
         $placeholders = implode(',', array_fill(0, count($reservationIds), '?'));
         $stmt = $pdo->prepare(
             "DELETE FROM TABLE_RESERVATION_TABLE WHERE reservation_id IN ({$placeholders})"
+        );
+        $stmt->execute($reservationIds);
+    }
+
+    private static function deleteReservationLogs(PDO $pdo, array $reservationIds): void
+    {
+        if (empty($reservationIds)) {
+            return;
+        }
+        $placeholders = implode(',', array_fill(0, count($reservationIds), '?'));
+        $stmt = $pdo->prepare(
+            "DELETE FROM RESERVATIONSTATUSLOG WHERE reservation_id IN ({$placeholders})"
+        );
+        $stmt->execute($reservationIds);
+    }
+
+    private static function deleteSeatingSessions(PDO $pdo, array $reservationIds): void
+    {
+        if (empty($reservationIds)) {
+            return;
+        }
+        $placeholders = implode(',', array_fill(0, count($reservationIds), '?'));
+        $stmt = $pdo->prepare(
+            "DELETE FROM SEATINGSESSION WHERE reservation_id IN ({$placeholders})"
         );
         $stmt->execute($reservationIds);
     }

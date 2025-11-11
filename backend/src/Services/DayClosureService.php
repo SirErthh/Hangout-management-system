@@ -11,7 +11,7 @@ final class DayClosureService
 {
     public static function getToday(): ?array
     {
-        return self::findByDate(date('Y-m-d'));
+        return self::current();
     }
 
     public static function store(array $data): array
@@ -32,6 +32,7 @@ final class DayClosureService
             'INSERT INTO DAY_CLOSURE (
                 closure_date,
                 opened_at,
+                closed_at,
                 status,
                 ticket_sales_baht,
                 fnb_sales_baht,
@@ -40,6 +41,7 @@ final class DayClosureService
             ) VALUES (
                 :date,
                 :opened_at,
+                :closed_at,
                 "open",
                 0,
                 0,
@@ -48,30 +50,35 @@ final class DayClosureService
             )'
         );
 
+        $openedAt = $payload['opened_at'] ?? date('Y-m-d H:i:s');
         $stmt->execute([
             'date' => $date,
-            'opened_at' => $payload['opened_at'] ?? date('Y-m-d H:i:s'),
+            'opened_at' => $openedAt,
+            'closed_at' => $openedAt,
             'note' => $payload['note'] ?? null,
         ]);
+
+        $nextDate = date('Y-m-d', strtotime($date . ' +1 day'));
 
         return [
             'closure' => self::findByDate($date),
             'summary' => self::summary($date),
             'summaryDate' => $date,
+            'previousClosure' => self::latestClosed(),
+            'nextDate' => $nextDate,
         ];
     }
 
     public static function closeDay(array $payload = []): array
     {
         $pdo = Database::connection();
-        $date = $payload['date'] ?? date('Y-m-d');
-        $record = self::findByDate($date);
-        if (!$record) {
-            $record = self::startDay(['date' => $date]);
+        $openRecord = self::current();
+        if (!$openRecord) {
+            throw new RuntimeException('No active day to close', 409);
         }
-        if ($record['status'] === 'closed') {
-            throw new RuntimeException('Day closure already submitted', 409);
-        }
+
+        $date = $openRecord['closureDate'];
+        $recordId = $openRecord['id'];
 
         $summary = self::summary($date);
 
@@ -91,7 +98,7 @@ final class DayClosureService
             'fnb_sales' => $summary['fnb']['amount'],
             'promptpay' => $summary['cash'],
             'note' => $payload['note'] ?? null,
-            'id' => $record['id'],
+            'id' => $recordId,
         ]);
 
         self::resetDayState($pdo, $date);
@@ -99,9 +106,11 @@ final class DayClosureService
         $nextDate = $payload['next_date'] ?? date('Y-m-d', strtotime($date . ' +1 day'));
 
         return [
-            'closure' => self::findByDate($date),
-            'summary' => self::summary($nextDate),
-            'summaryDate' => $nextDate,
+            'closure' => null,
+            'summary' => self::summary($date),
+            'summaryDate' => $date,
+            'nextDate' => $nextDate,
+            'previousClosure' => self::latestClosed(),
         ];
     }
 
@@ -189,25 +198,9 @@ final class DayClosureService
 
     private static function resetDayState(PDO $pdo, string $date): void
     {
-        $reservationIds = self::fetchIds(
-            $pdo,
-            'SELECT id FROM TABLE_RESERVATION WHERE DATE(reserved_date) <= :date',
-            ['date' => $date],
-        );
-
-        if ($reservationIds) {
-            self::ensureReservationTablePivot($pdo);
-            $placeholders = implode(',', array_fill(0, count($reservationIds), '?'));
-            $stmt = $pdo->prepare(
-                "DELETE FROM TABLE_RESERVATION_TABLE WHERE reservation_id IN ({$placeholders})"
-            );
-            $stmt->execute($reservationIds);
-        }
-
         $pdo->prepare(
             'UPDATE TABLE_RESERVATION
-             SET assigned_table_id = NULL,
-                 status = CASE
+             SET status = CASE
                      WHEN status IN ("pending","confirmed","seated") THEN "completed"
                      ELSE status
                  END
@@ -241,6 +234,24 @@ final class DayClosureService
         return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     }
 
+    public static function current(): ?array
+    {
+        $pdo = Database::connection();
+        $stmt = $pdo->query(
+            'SELECT *
+             FROM DAY_CLOSURE
+             WHERE status = "open"
+             ORDER BY closure_date DESC
+             LIMIT 1'
+        );
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            return self::transform($row);
+        }
+
+        return self::findByDate(date('Y-m-d'));
+    }
+
     private static function ensureReservationTablePivot(PDO $pdo): void
     {
         static $ensured = false;
@@ -263,5 +274,18 @@ final class DayClosureService
         );
 
         $ensured = true;
+    }
+
+    public static function latestClosed(): ?array
+    {
+        $stmt = Database::connection()->query(
+            'SELECT *
+             FROM DAY_CLOSURE
+             WHERE status = "closed"
+             ORDER BY closure_date DESC
+             LIMIT 1'
+        );
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ? self::transform($row) : null;
     }
 }

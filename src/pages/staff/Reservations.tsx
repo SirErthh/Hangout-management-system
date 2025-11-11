@@ -93,61 +93,6 @@ const StaffReservations = () => {
     }
   };
 
-  const getTablePosition = (label: string) => {
-    const match = label.match(/(\d+)/);
-    return match ? parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER;
-  };
-
-  const handleAutoAssign = async (reservation: Reservation) => {
-    const availableTables = tables
-      .filter((table) => table.status === "available")
-      .sort((a, b) => getTablePosition(a.number) - getTablePosition(b.number));
-
-    let chosen: TableRow[] | null = null;
-
-    outer: for (let i = 0; i < availableTables.length; i++) {
-      let total = 0;
-      const combo: TableRow[] = [];
-      let prevPosition: number | null = null;
-
-      for (let j = i; j < availableTables.length; j++) {
-        const current = availableTables[j];
-        const position = getTablePosition(current.number);
-        if (prevPosition !== null && position - prevPosition !== 1) {
-          break;
-        }
-
-        combo.push(current);
-        total += current.capacity;
-        prevPosition = position;
-
-        if (total >= reservation.partySize) {
-          chosen = combo;
-          break outer;
-        }
-      }
-    }
-
-    if (!chosen) {
-      toast.error("No adjacent table combination can cover this party size");
-      return;
-    }
-
-    try {
-      const { reservation: updated } = await api.assignReservationTable(
-        reservation.id,
-        chosen.map((table) => table.id),
-      );
-      updateReservation(updated);
-      toast.success(
-        `Assigned ${chosen.map((table) => table.number).join(" + ")} to ${reservation.customer}`,
-      );
-      await loadTables();
-    } catch (error) {
-      handleApiError(error, "Failed to assign tables");
-    }
-  };
-
   const handleManualAssign = (reservation: Reservation) => {
     navigate("/staff/table-assignment", { state: { reservation } });
   };
@@ -380,23 +325,14 @@ const StaffReservations = () => {
                       </Button>
                     )}
                     {canAssignTable && (
-                      <>
-                        <Button
-                          size="sm"
-                          onClick={() => handleAutoAssign(reservation)}
-                          disabled={updatingId === reservation.id}
-                        >
-                          Auto Assign Table
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleManualAssign(reservation)}
-                          disabled={updatingId === reservation.id}
-                        >
-                          Manual Assign
-                        </Button>
-                      </>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleManualAssign(reservation)}
+                        disabled={updatingId === reservation.id}
+                      >
+                        Assign Table
+                      </Button>
                     )}
                   </div>
                 </CardContent>

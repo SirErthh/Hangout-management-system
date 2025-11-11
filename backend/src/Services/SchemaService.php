@@ -18,8 +18,77 @@ final class SchemaService
         self::ensureEventsColumns($pdo);
         self::ensureTicketCodeTable($pdo);
         self::ensureMenuColumns($pdo);
+        self::ensureFnbOrderColumns($pdo);
+        self::ensureTicketOrderColumns($pdo);
         self::ensureReservationSupport($pdo);
+        self::ensureCheckInColumns($pdo);
         self::seedDefaultData($pdo);
+    }
+
+    private static function ensureCheckInColumns(PDO $pdo): void
+    {
+        $schema = Config::get('database.database');
+        $columnExists = $pdo->prepare(
+            'SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = :schema AND TABLE_NAME = :table AND COLUMN_NAME = :column'
+        );
+
+        $columns = [
+            'ticket_code_id' => 'ALTER TABLE CHECK_IN ADD COLUMN ticket_code_id BIGINT NULL',
+            'ticket_code' => 'ALTER TABLE CHECK_IN ADD COLUMN ticket_code VARCHAR(64) NULL',
+            'event_id' => 'ALTER TABLE CHECK_IN ADD COLUMN event_id BIGINT NULL',
+            'customer_id' => 'ALTER TABLE CHECK_IN ADD COLUMN customer_id BIGINT NULL',
+            'staff_id' => 'ALTER TABLE CHECK_IN ADD COLUMN staff_id BIGINT NULL',
+            'note' => 'ALTER TABLE CHECK_IN ADD COLUMN note VARCHAR(255) NULL',
+            'order_id' => 'ALTER TABLE CHECK_IN ADD COLUMN order_id BIGINT NULL',
+        ];
+
+        foreach ($columns as $column => $sql) {
+            $columnExists->execute([
+                'schema' => $schema,
+                'table' => 'CHECK_IN',
+                'column' => $column,
+            ]);
+
+            if ((int)$columnExists->fetchColumn() === 0) {
+                $pdo->exec($sql);
+            }
+        }
+    }
+
+    private static function ensureTicketOrderColumns(PDO $pdo): void
+    {
+        $schema = Config::get('database.database');
+        $columnExists = $pdo->prepare(
+            'SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = :schema AND TABLE_NAME = :table AND COLUMN_NAME = :column'
+        );
+
+        $columnExists->execute([
+            'schema' => $schema,
+            'table' => 'TICKETS_ORDER',
+            'column' => 'payment_note',
+        ]);
+
+        if ((int)$columnExists->fetchColumn() > 0) {
+            $pdo->exec('ALTER TABLE TICKETS_ORDER DROP COLUMN payment_note');
+        }
+    }
+
+    private static function ensureFnbOrderColumns(PDO $pdo): void
+    {
+        $schema = Config::get('database.database');
+        $columnExists = $pdo->prepare(
+            'SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = :schema AND TABLE_NAME = :table AND COLUMN_NAME = :column'
+        );
+
+        $columnExists->execute([
+            'schema' => $schema,
+            'table' => 'FNB_ORDER',
+            'column' => 'payment_note',
+        ]);
+
+        if ((int)$columnExists->fetchColumn() > 0) {
+            $pdo->exec('ALTER TABLE FNB_ORDER DROP COLUMN payment_note');
+        }
     }
 
     private static function ensureRoles(PDO $pdo): void
@@ -156,7 +225,6 @@ final class SchemaService
     {
         self::seedAdmin($pdo);
         self::seedTables($pdo);
-        self::seedEvents($pdo);
         self::seedMenu($pdo);
     }
 
@@ -245,59 +313,6 @@ final class SchemaService
                 'name' => $table['table_name'],
                 'capacity' => $table['capacity'],
                 'active' => 1,
-            ]);
-        }
-    }
-
-    private static function seedEvents(PDO $pdo): void
-    {
-        $count = (int)$pdo->query('SELECT COUNT(*) FROM EVENTS')->fetchColumn();
-        if ($count > 0) {
-            return;
-        }
-
-        $events = [
-            [
-                'title' => 'Jazz Night',
-                'artist' => 'The Groove Ensemble',
-                'cover_img' => '🎷',
-                'description' => 'Live jazz performance with guest artists.',
-                'ticket_price' => 500.00,
-                'starts_at' => date('Y-m-d H:i:s', strtotime('+7 days 20:00')),
-                'ends_at' => date('Y-m-d H:i:s', strtotime('+7 days 23:00')),
-                'prefix' => 'JAZ',
-            ],
-            [
-                'title' => 'EDM Party',
-                'artist' => 'DJ Nova',
-                'cover_img' => '🎧',
-                'description' => 'Electronic dance music festival.',
-                'ticket_price' => 800.00,
-                'starts_at' => date('Y-m-d H:i:s', strtotime('+14 days 21:00')),
-                'ends_at' => date('Y-m-d H:i:s', strtotime('+15 days 02:00')),
-                'prefix' => 'EDM',
-            ],
-        ];
-
-        $stmt = $pdo->prepare(
-            'INSERT INTO EVENTS (title, artist, status, cover_img, description, ticket_price, capacity_mode, capacity_fixed, starts_at, ends_at, ticket_code_prefix, max_capacity)
-            VALUES (:title, :artist, :status, :cover_img, :description, :ticket_price, :capacity_mode, :capacity_fixed, :starts_at, :ends_at, :prefix, :max_capacity)'
-        );
-
-        foreach ($events as $event) {
-            $stmt->execute([
-                'title' => $event['title'],
-                'artist' => $event['artist'],
-                'status' => 'published',
-                'cover_img' => $event['cover_img'],
-                'description' => $event['description'],
-                'ticket_price' => $event['ticket_price'],
-                'capacity_mode' => 'fixed',
-                'capacity_fixed' => 250,
-                'starts_at' => $event['starts_at'],
-                'ends_at' => $event['ends_at'],
-                'prefix' => $event['prefix'],
-                'max_capacity' => 250,
             ]);
         }
     }

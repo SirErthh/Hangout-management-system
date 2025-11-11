@@ -22,6 +22,7 @@ type EventItem = {
   ticketCodePrefix?: string;
   description?: string | null;
   artist?: string | null;
+  capacity?: number | null;
 };
 
 const Events = () => {
@@ -36,7 +37,10 @@ const Events = () => {
     async (signal?: AbortSignal) => {
       setLoading(true);
       try {
-        const { events: fetched = [] } = await api.getEvents(signal);
+        const { events: fetched = [] } = await api.getEvents({
+          signal,
+          activeOnly: true,
+        });
         if (signal?.aborted) {
           return;
         }

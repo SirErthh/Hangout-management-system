@@ -1,12 +1,85 @@
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, BookOpen, UtensilsCrossed, Sparkles } from "lucide-react";
+import { format } from "date-fns";
+import { api, authStorage, handleApiError } from "@/lib/api";
+
+type EventItem = {
+  id: number;
+  name: string;
+  price: number;
+  date?: string | null;
+  starts_at?: string | null;
+  image_url?: string | null;
+  cover_img?: string | null;
+};
+
+type DisplayEvent = EventItem & { eventDate: Date | null };
+
+const isImageSource = (value: string) => /^(https?:\/\/|\/|data:)/i.test(value.trim());
 
 const Landing = () => {
   const navigate = useNavigate();
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+  const isLoggedIn = !!authStorage.getUser();
 
-  const isLoggedIn = !!localStorage.getItem('currentUser');
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadEvents = async () => {
+      try {
+        setLoadingEvents(true);
+        const { events: payload } = await api.getEvents({
+          signal: controller.signal,
+          activeOnly: true,
+        });
+        if (!controller.signal.aborted) {
+          setEvents((payload ?? []) as EventItem[]);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          handleApiError(error, "Failed to load events");
+          setEvents([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadingEvents(false);
+        }
+      }
+    };
+
+    loadEvents();
+
+    return () => controller.abort();
+  }, []);
+
+  const upcomingEvents: DisplayEvent[] = useMemo(() => {
+    const now = new Date();
+
+    const parseEventDate = (item: EventItem): Date | null => {
+      const raw = item.starts_at ?? item.date ?? null;
+      if (!raw) return null;
+      const parsed = new Date(raw);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+
+    return (events ?? [])
+      .map((event) => ({
+        ...event,
+        eventDate: parseEventDate(event),
+      }))
+      .filter((event) => !event.eventDate || event.eventDate >= now)
+      .sort((a, b) => {
+        if (!a.eventDate && !b.eventDate) return 0;
+        if (!a.eventDate) return 1;
+        if (!b.eventDate) return -1;
+        return a.eventDate.getTime() - b.eventDate.getTime();
+      })
+      .slice(0, 4);
+  }, [events]);
 
   const features = [
     {
@@ -41,10 +114,13 @@ const Landing = () => {
     },
   ];
 
-  const upcomingEvents = [
-    { name: "Jazz Night", date: "20 Nov 2025", price: 250 },
-    { name: "Rock & Chill", date: "22 Nov 2025", price: 300 },
-  ];
+  const hasEvents = upcomingEvents.length > 0;
+
+  const formatEventDate = (event: DisplayEvent) =>
+    event.eventDate ? format(event.eventDate, "dd MMM yyyy") : "TBA";
+
+  const formatEventPrice = (price?: number) =>
+    typeof price === "number" && !Number.isNaN(price) ? `${price.toLocaleString()} THB` : "TBA";
 
   return (
     <div className="min-h-screen">
@@ -123,25 +199,35 @@ const Landing = () => {
           <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12">Upcoming Events</h2>
           {/* Mobile: Card layout */}
           <div className="block sm:hidden space-y-4">
-            {upcomingEvents.map((event, idx) => (
-              <Card key={idx}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="w-16 h-12 rounded-lg bg-gradient-primary flex items-center justify-center flex-shrink-0">
-                      <Calendar className="h-5 w-5 text-white" />
+            {loadingEvents ? (
+              <Card>
+                <CardContent className="p-4 text-center text-muted-foreground">Loading events...</CardContent>
+              </Card>
+            ) : hasEvents ? (
+              upcomingEvents.map((event) => (
+                <Card key={event.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3 mb-3">
+                      {renderCover(event, "sm")}
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-base">{event.name}</h3>
+                        <p className="text-xs text-muted-foreground">{formatEventDate(event)}</p>
+                        <p className="text-sm font-semibold mt-1">{formatEventPrice(event.price)}</p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-base">{event.name}</h3>
-                      <p className="text-xs text-muted-foreground">{event.date}</p>
-                      <p className="text-sm font-semibold mt-1">{event.price} THB</p>
-                    </div>
-                  </div>
-                  <Button onClick={() => navigate('/events')} size="sm" className="w-full">
-                    Buy Ticket
-                  </Button>
+                    <Button onClick={() => navigate('/events')} size="sm" className="w-full">
+                      Buy Ticket
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <Card>
+                <CardContent className="p-4 text-center text-muted-foreground">
+                  No upcoming events yet. Check back soon!
                 </CardContent>
               </Card>
-            ))}
+            )}
           </div>
           {/* Desktop: Table layout */}
           <Card className="hidden sm:block">
@@ -157,25 +243,37 @@ const Landing = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {upcomingEvents.map((event, idx) => (
-                      <tr key={idx} className="border-b last:border-0 hover:bg-muted/50 transition-smooth">
-                        <td className="p-4">
-                          <div className="flex items-center gap-4">
-                            <div className="w-24 h-16 rounded-lg bg-gradient-primary flex items-center justify-center">
-                              <Calendar className="h-8 w-8 text-white" />
-                            </div>
-                            <span className="font-semibold">{event.name}</span>
-                          </div>
-                        </td>
-                        <td className="p-4">{event.date}</td>
-                        <td className="p-4 font-semibold">{event.price} THB</td>
-                        <td className="p-4">
-                          <Button onClick={() => navigate('/events')} size="sm">
-                            Buy Ticket
-                          </Button>
+                    {loadingEvents ? (
+                      <tr>
+                        <td className="p-4 text-center text-muted-foreground" colSpan={4}>
+                          Loading events...
                         </td>
                       </tr>
-                    ))}
+                    ) : hasEvents ? (
+                      upcomingEvents.map((event) => (
+                        <tr key={event.id} className="border-b last:border-0 hover:bg-muted/50 transition-smooth">
+                          <td className="p-4">
+                            <div className="flex items-center gap-4">
+                              {renderCover(event, "lg")}
+                              <span className="font-semibold">{event.name}</span>
+                            </div>
+                          </td>
+                          <td className="p-4">{formatEventDate(event)}</td>
+                          <td className="p-4 font-semibold">{formatEventPrice(event.price)}</td>
+                          <td className="p-4">
+                            <Button onClick={() => navigate('/events')} size="sm">
+                              Buy Ticket
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td className="p-4 text-center text-muted-foreground" colSpan={4}>
+                          No events have been scheduled yet.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -188,3 +286,28 @@ const Landing = () => {
 };
 
 export default Landing;
+  const renderCover = (event: DisplayEvent, variant: "sm" | "lg") => {
+    const cover = (event.image_url ?? event.cover_img ?? "").trim();
+    const showImage = cover !== "" && isImageSource(cover);
+    const sizeClasses = variant === "sm" ? "w-16 h-12" : "w-24 h-16";
+    const iconSize = variant === "sm" ? "h-5 w-5" : "h-8 w-8";
+    const emojiSize = variant === "sm" ? "text-2xl" : "text-3xl";
+
+    return (
+      <div
+        className={`${sizeClasses} rounded-lg flex items-center justify-center flex-shrink-0 ${
+          showImage ? "bg-muted overflow-hidden" : "bg-gradient-primary"
+        }`}
+      >
+        {cover ? (
+          showImage ? (
+            <img src={cover} alt={`${event.name} cover`} className="w-full h-full object-cover" />
+          ) : (
+            <span className={emojiSize}>{cover}</span>
+          )
+        ) : (
+          <Calendar className={`${iconSize} text-white`} />
+        )}
+      </div>
+    );
+  };

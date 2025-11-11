@@ -1,11 +1,51 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Ticket, BookOpen, UtensilsCrossed, Clock, Zap, ChevronRight } from "lucide-react";
+import { Ticket, BookOpen, UtensilsCrossed, Users, Zap, ChevronRight } from "lucide-react";
+import { api, handleApiError } from "@/lib/api";
 
 const StaffDashboard = () => {
   const navigate = useNavigate();
+  const [metrics, setMetrics] = useState({
+    ticketsToday: 0,
+    reservationsToday: 0,
+    fnbOrdersToday: 0,
+    guestsToday: 0,
+  });
+  const [loadingMetrics, setLoadingMetrics] = useState(true);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadMetrics = async () => {
+      setLoadingMetrics(true);
+      setMetricsError(null);
+      try {
+        const data = await api.getStaffDashboard();
+        if (!mounted) return;
+        setMetrics({
+          ticketsToday: data.ticketsToday ?? 0,
+          reservationsToday: data.reservationsToday ?? 0,
+          fnbOrdersToday: data.fnbOrdersToday ?? 0,
+          guestsToday: data.guestsToday ?? 0,
+        });
+      } catch (error) {
+        if (!mounted) return;
+        handleApiError(error, "Failed to load dashboard metrics");
+        setMetricsError("Unable to load live metrics right now.");
+      } finally {
+        if (mounted) {
+          setLoadingMetrics(false);
+        }
+      }
+    };
+    loadMetrics();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const routeByType: Record<string, string> = {
     ticket: "/staff/tickets",
@@ -30,35 +70,38 @@ const StaffDashboard = () => {
     { id: 4, type: "reservation", description: "Follow up with customer for 8pm booking", priority: "low" }
   ];
 
+  const formatStatValue = (value: number) =>
+    loadingMetrics ? "…" : value.toLocaleString();
+
   const stats = [
     {
-      title: "Pending Tickets",
-      value: "12",
+      title: "Tickets Today",
+      value: formatStatValue(metrics.ticketsToday),
       icon: Ticket,
       gradient: "from-blue-500 to-cyan-500",
-      go: () => goto("/staff/tickets")
+      go: () => goto("/staff/tickets"),
     },
     {
       title: "Today's Reservations",
-      value: "24",
+      value: formatStatValue(metrics.reservationsToday),
       icon: BookOpen,
       gradient: "from-purple-500 to-pink-500",
-      go: () => goto("/staff/reservations")
+      go: () => goto("/staff/reservations"),
     },
     {
-      title: "Kitchen Orders",
-      value: "8",
+      title: "Today's F&B Orders",
+      value: formatStatValue(metrics.fnbOrdersToday),
       icon: UtensilsCrossed,
       gradient: "from-orange-500 to-red-500",
-      go: () => goto("/staff/fnb")
+      go: () => goto("/staff/fnb"),
     },
     {
-      title: "Avg. Wait Time",
-      value: "15m",
-      icon: Clock,
+      title: "Guests In-House",
+      value: formatStatValue(metrics.guestsToday),
+      icon: Users,
       gradient: "from-green-500 to-emerald-500",
-      go: () => goto("/staff/fnb")
-    }
+      go: () => goto("/staff/reservations"),
+    },
   ];
 
   const getPriorityColor = (priority: string) => {
@@ -109,6 +152,9 @@ const StaffDashboard = () => {
         <h1 className="text-3xl font-bold mb-2">Staff Dashboard</h1>
         <p className="text-muted-foreground">Your tasks and operations overview</p>
       </div>
+      {metricsError && (
+        <p className="text-sm text-destructive">{metricsError}</p>
+      )}
 
       {/* Stats - clickable */}
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">

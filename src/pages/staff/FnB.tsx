@@ -14,6 +14,7 @@ type OrderItem = {
   price: number;
   line_total?: number;
   status: string;
+  remark?: string | null;
 };
 
 type Order = {
@@ -197,19 +198,23 @@ const StaffFnB = () => {
                   <div className="space-y-4">
                     <div>
                       <p className="text-xs sm:text-sm font-medium mb-2">Order Items:</p>
-                      <ul className="space-y-1">
+                      <ul className="space-y-2">
                         {order.items?.length ? (
                           order.items.map((item) => (
-                            <li
-                              key={item.id}
-                              className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2"
-                            >
-                              <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                              <span className="truncate">
-                                {item.name} × {item.quantity} — ฿{(
-                                  item.line_total ?? item.price * item.quantity
-                                ).toFixed(2)}
-                              </span>
+                            <li key={item.id} className="text-xs sm:text-sm text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                                <span className="truncate">
+                                  {item.name} × {item.quantity} — ฿{(
+                                    item.line_total ?? item.price * item.quantity
+                                  ).toFixed(2)}
+                                </span>
+                              </div>
+                              {item.remark && (
+                                <p className="ml-4 mt-1 text-[11px] sm:text-xs text-muted-foreground/80">
+                                  Remark: {item.remark}
+                                </p>
+                              )}
                             </li>
                           ))
                         ) : (

@@ -51,7 +51,8 @@ final class TicketController
             throw new RuntimeException('Code is required', 422);
         }
 
-        $order = TicketService::confirmTicket($orderId, $code);
+        $note = $request->input('note');
+        $order = TicketService::confirmTicket($orderId, $code, $request->user(), $note ? (string)$note : null);
         return ['order' => $order];
     }
 
@@ -59,7 +60,8 @@ final class TicketController
     {
         $this->ensureStaff($request);
         $orderId = (int)$request->param('id');
-        $order = TicketService::confirmAll($orderId);
+        $note = $request->input('note');
+        $order = TicketService::confirmAll($orderId, $request->user(), $note ? (string)$note : null);
         return ['order' => $order];
     }
 
