@@ -15,10 +15,15 @@ final class DayClosureController
         $this->ensureAdmin($request);
         $closure = DayClosureService::current();
         $previousClosure = DayClosureService::latestClosed();
-        $summaryDate = $closure ? $closure['closureDate'] : date('Y-m-d');
-        $nextDate = $closure
-            ? date('Y-m-d', strtotime($closure['closureDate'] . ' +1 day'))
-            : date('Y-m-d');
+        if ($closure) {
+            $summaryDate = $closure['closureDate'];
+            $nextDate = date('Y-m-d', strtotime($closure['closureDate'] . ' +1 day'));
+        } else {
+            $summaryDate = $previousClosure
+                ? date('Y-m-d', strtotime($previousClosure['closureDate'] . ' +1 day'))
+                : date('Y-m-d');
+            $nextDate = $summaryDate;
+        }
 
         return [
             'closure' => $closure,

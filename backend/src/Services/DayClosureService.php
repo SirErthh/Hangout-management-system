@@ -24,8 +24,38 @@ final class DayClosureService
         $pdo = Database::connection();
         $date = $payload['date'] ?? date('Y-m-d');
         $existing = self::findByDate($date);
+        $openedAt = $payload['opened_at'] ?? date('Y-m-d H:i:s');
+        $note = $payload['note'] ?? null;
+
         if ($existing) {
-            throw new RuntimeException("Day already initialized for {$date}", 409);
+            if ($existing['status'] === 'open') {
+                throw new RuntimeException("Day already initialized for {$date}", 409);
+            }
+
+            $stmt = $pdo->prepare(
+                'UPDATE DAY_CLOSURE
+                 SET status = "open",
+                     opened_at = :opened_at,
+                     closed_at = :opened_at,
+                     ticket_sales_baht = 0,
+                     fnb_sales_baht = 0,
+                     promptpay_amount_baht = 0,
+                     note = :note
+                 WHERE id = :id'
+            );
+            $stmt->execute([
+                'opened_at' => $openedAt,
+                'note' => $note,
+                'id' => $existing['id'],
+            ]);
+
+            return [
+                'closure' => self::findByDate($date),
+                'summary' => self::summary($date),
+                'summaryDate' => $date,
+                'previousClosure' => self::latestClosed(),
+                'nextDate' => date('Y-m-d', strtotime($date . ' +1 day')),
+            ];
         }
 
         $stmt = $pdo->prepare(
@@ -50,12 +80,11 @@ final class DayClosureService
             )'
         );
 
-        $openedAt = $payload['opened_at'] ?? date('Y-m-d H:i:s');
         $stmt->execute([
             'date' => $date,
             'opened_at' => $openedAt,
             'closed_at' => $openedAt,
-            'note' => $payload['note'] ?? null,
+            'note' => $note,
         ]);
 
         $nextDate = date('Y-m-d', strtotime($date . ' +1 day'));
@@ -82,33 +111,41 @@ final class DayClosureService
 
         $summary = self::summary($date);
 
-        $update = $pdo->prepare(
-            'UPDATE DAY_CLOSURE
-             SET closed_at = :closed_at,
-                 status = "closed",
-                 ticket_sales_baht = :ticket_sales,
-                 fnb_sales_baht = :fnb_sales,
-                 promptpay_amount_baht = :promptpay,
-                 note = :note
-             WHERE id = :id'
-        );
-        $update->execute([
-            'closed_at' => $payload['closed_at'] ?? date('Y-m-d H:i:s'),
-            'ticket_sales' => $summary['tickets']['amount'],
-            'fnb_sales' => $summary['fnb']['amount'],
-            'promptpay' => $summary['cash'],
-            'note' => $payload['note'] ?? null,
-            'id' => $recordId,
-        ]);
+        $pdo->beginTransaction();
+        try {
+            $update = $pdo->prepare(
+                'UPDATE DAY_CLOSURE
+                 SET closed_at = :closed_at,
+                     status = "closed",
+                     ticket_sales_baht = :ticket_sales,
+                     fnb_sales_baht = :fnb_sales,
+                     promptpay_amount_baht = :promptpay,
+                     note = :note
+                 WHERE id = :id'
+            );
+            $update->execute([
+                'closed_at' => $payload['closed_at'] ?? date('Y-m-d H:i:s'),
+                'ticket_sales' => $summary['tickets']['amount'],
+                'fnb_sales' => $summary['fnb']['amount'],
+                'promptpay' => $summary['cash'],
+                'note' => $payload['note'] ?? null,
+                'id' => $recordId,
+            ]);
 
-        self::resetDayState($pdo, $date);
+            self::resetDayState($pdo, $date);
+
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
 
         $nextDate = $payload['next_date'] ?? date('Y-m-d', strtotime($date . ' +1 day'));
 
         return [
             'closure' => null,
-            'summary' => self::summary($date),
-            'summaryDate' => $date,
+            'summary' => self::summary($nextDate),
+            'summaryDate' => $nextDate,
             'nextDate' => $nextDate,
             'previousClosure' => self::latestClosed(),
         ];
@@ -223,7 +260,14 @@ final class DayClosureService
         $pdo->prepare(
             'UPDATE TICKETS_ORDER
              SET status = "completed"
-             WHERE DATE(created_at) <= :date AND status <> "completed"'
+             WHERE status <> "completed"
+               AND id IN (
+                   SELECT DISTINCT toi.order_id
+                   FROM TICKET_ORDER_ITEM toi
+                   INNER JOIN EVENTS e ON e.id = toi.event_id
+                   WHERE e.ends_at IS NOT NULL
+                     AND e.ends_at <= CONCAT(:date, " 23:59:59")
+               )'
         )->execute(['date' => $date]);
     }
 
@@ -249,7 +293,7 @@ final class DayClosureService
             return self::transform($row);
         }
 
-        return self::findByDate(date('Y-m-d'));
+        return null;
     }
 
     private static function ensureReservationTablePivot(PDO $pdo): void

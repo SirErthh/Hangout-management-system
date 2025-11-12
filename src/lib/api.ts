@@ -132,6 +132,8 @@ export const api = {
   },
   getMenuItems: (signal?: AbortSignal) =>
     apiRequest<{ items: any[] }>("/api/menu-items", { signal }),
+  getEvent: (id: number, signal?: AbortSignal) =>
+    apiRequest<{ event: any }>(`/api/events/${id}`, { signal }),
   orderMenu: (payload: { items: any[]; table_id?: number | null; note?: string }) =>
     apiRequest<{ order: any }>("/api/menu-orders", {
       method: "POST",

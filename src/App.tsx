@@ -30,6 +30,7 @@ import StaffReservations from "./pages/staff/Reservations";
 import StaffTableAssignment from "./pages/staff/TableAssignment";
 import StaffFnB from "./pages/staff/FnB";
 import NotFound from "./pages/NotFound";
+import EventDetails from "./pages/EventDetails";
 
 const queryClient = new QueryClient();
 
@@ -113,6 +114,10 @@ const App = () => {
                   <Route 
                     path="/events" 
                     element={<Events />} 
+                  />
+                  <Route
+                    path="/events/:id"
+                    element={<EventDetails />}
                   />
                   <Route 
                     path="/confirm-order" 

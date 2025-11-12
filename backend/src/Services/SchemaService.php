@@ -21,6 +21,8 @@ final class SchemaService
         self::ensureFnbOrderColumns($pdo);
         self::ensureTicketOrderColumns($pdo);
         self::ensureReservationSupport($pdo);
+        self::ensureReservationStatusLogEnums($pdo);
+        self::ensureReservationStatusEnum($pdo);
         self::ensureCheckInColumns($pdo);
         self::seedDefaultData($pdo);
     }
@@ -52,6 +54,59 @@ final class SchemaService
             if ((int)$columnExists->fetchColumn() === 0) {
                 $pdo->exec($sql);
             }
+        }
+    }
+
+    private static function ensureReservationStatusEnum(PDO $pdo): void
+    {
+        $schema = Config::get('database.database');
+        $stmt = $pdo->prepare(
+            'SELECT COLUMN_TYPE
+             FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = :schema
+               AND TABLE_NAME = "TABLE_RESERVATION"
+               AND COLUMN_NAME = "status"
+             LIMIT 1'
+        );
+        $stmt->execute(['schema' => $schema]);
+        $columnType = $stmt->fetchColumn();
+        if ($columnType !== false && str_contains(strtolower((string)$columnType), "'completed'")) {
+            return;
+        }
+
+        $pdo->exec(
+            "ALTER TABLE TABLE_RESERVATION
+             MODIFY status ENUM('pending','confirmed','seated','no_show','canceled','completed')
+             CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL"
+        );
+    }
+
+    private static function ensureReservationStatusLogEnums(PDO $pdo): void
+    {
+        $schema = Config::get('database.database');
+        foreach (['old_status', 'new_status'] as $column) {
+            $stmt = $pdo->prepare(
+                'SELECT COLUMN_TYPE
+                 FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = :schema
+                   AND TABLE_NAME = "RESERVATIONSTATUSLOG"
+                   AND COLUMN_NAME = :column
+                 LIMIT 1'
+            );
+            $stmt->execute([
+                'schema' => $schema,
+                'column' => $column,
+            ]);
+            $columnType = $stmt->fetchColumn();
+            if ($columnType !== false && str_contains(strtolower((string)$columnType), "'completed'")) {
+                continue;
+            }
+
+            $pdo->exec(
+                "ALTER TABLE RESERVATIONSTATUSLOG
+                 MODIFY {$column} ENUM('pending','confirmed','seated','no_show','canceled','completed')
+                 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL"
+            );
         }
     }
 

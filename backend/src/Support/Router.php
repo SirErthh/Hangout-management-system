@@ -85,6 +85,14 @@ final class Router
                     }
                 } catch (\Throwable $e) {
                     $status = $e->getCode() >= 400 ? (int)$e->getCode() : 500;
+                    error_log(sprintf(
+                        '[router] %s %s failed: %s in %s:%d',
+                        $method,
+                        $uri,
+                        $e->getMessage(),
+                        $e->getFile(),
+                        $e->getLine(),
+                    ));
                     $response->json([
                         'message' => $status === 500 ? 'Internal server error' : $e->getMessage(),
                     ], $status);

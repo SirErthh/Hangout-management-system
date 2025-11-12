@@ -97,6 +97,7 @@ const DayClosure = () => {
       setPreviousClosure(previousClosure ?? closed ?? null);
       setNextDate(apiNextDate ?? apiSummaryDate);
       toast.success("Day closed successfully!");
+      window.dispatchEvent(new Event("day-closure-updated"));
       await load();
     } catch (error) {
       handleApiError(error, "Failed to close the day");
@@ -126,6 +127,7 @@ const DayClosure = () => {
       setPreviousClosure(previousClosure ?? null);
       setNextDate(apiNextDate ?? apiSummaryDate);
       toast.success("Day started successfully!");
+      window.dispatchEvent(new Event("day-closure-updated"));
       await load();
     } catch (error) {
       handleApiError(error, "Failed to start the day");

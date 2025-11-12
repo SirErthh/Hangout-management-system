@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { UtensilsCrossed, Clock, CheckCircle, Users } from "lucide-react";
+import { UtensilsCrossed, Clock, CheckCircle, Users, Calendar } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
 
 type OrderItem = {
@@ -33,30 +33,39 @@ const StaffFnB = () => {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    const loadOrders = async () => {
+  const loadOrders = useCallback(
+    async (signal?: AbortSignal) => {
       setLoading(true);
       try {
-        const { orders: fetched } = await api.getFnbOrders(false, controller.signal);
-        setOrders(fetched ?? []);
+        const { orders: fetched } = await api.getFnbOrders(false, signal);
+        if (!signal?.aborted) {
+          setOrders(fetched ?? []);
+        }
       } catch (error) {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           handleApiError(error, "Failed to load F&B orders");
           setOrders([]);
         }
       } finally {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           setLoading(false);
         }
       }
-    };
+    },
+    [],
+  );
 
-    loadOrders();
-
+  useEffect(() => {
+    const controller = new AbortController();
+    loadOrders(controller.signal);
     return () => controller.abort();
-  }, []);
+  }, [loadOrders]);
+
+  useEffect(() => {
+    const handler = () => loadOrders();
+    window.addEventListener("day-closure-updated", handler);
+    return () => window.removeEventListener("day-closure-updated", handler);
+  }, [loadOrders]);
 
   const updateOrderStatus = async (orderId: number, newStatus: Order["status"]) => {
     setUpdatingId(orderId);
@@ -170,9 +179,11 @@ const StaffFnB = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {orders.map((order) => {
             const StatusIcon = getStatusIcon(order.status);
-            const createdAt = order.createdAt
-              ? new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            const createdDate = order.createdAt ? new Date(order.createdAt) : null;
+            const createdTimeLabel = createdDate
+              ? createdDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
               : "-";
+            const createdDateLabel = createdDate ? createdDate.toLocaleDateString() : "-";
             return (
               <Card key={order.id} className="glass-effect border-2">
                 <CardHeader>
@@ -183,10 +194,16 @@ const StaffFnB = () => {
                         <Users className="h-3 w-3" />
                         {order.customer}
                       </CardDescription>
-                      <CardDescription className="flex items-center gap-2 text-xs sm:text-sm">
-                        <Clock className="h-3 w-3" />
-                        {createdAt}
-                      </CardDescription>
+                      <div className="space-y-1 text-xs sm:text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-3 w-3" />
+                          <span>{createdDateLabel}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3 w-3" />
+                          <span>{createdTimeLabel}</span>
+                        </div>
+                      </div>
                     </div>
                     <Badge className={getStatusColor(order.status)}>
                       <StatusIcon className="h-3 w-3 mr-1" />

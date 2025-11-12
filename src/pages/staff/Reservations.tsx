@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,35 +45,44 @@ const StaffReservations = () => {
     }
   };
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    const loadData = async () => {
+  const fetchReservations = useCallback(
+    async (signal?: AbortSignal) => {
       setLoading(true);
       try {
         const [reservationsRes, tablesRes] = await Promise.all([
-          api.getReservations(false, controller.signal),
-          api.getTables(controller.signal),
+          api.getReservations(false, signal),
+          api.getTables(signal),
         ]);
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           setReservations(reservationsRes.reservations ?? []);
           setTables(tablesRes.tables ?? []);
         }
       } catch (error) {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           handleApiError(error, "Failed to load reservations");
         }
       } finally {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           setLoading(false);
         }
       }
-    };
+    },
+    [],
+  );
 
-    loadData();
-
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchReservations(controller.signal);
     return () => controller.abort();
-  }, []);
+  }, [fetchReservations]);
+
+  useEffect(() => {
+    const handler = () => {
+      fetchReservations();
+    };
+    window.addEventListener("day-closure-updated", handler);
+    return () => window.removeEventListener("day-closure-updated", handler);
+  }, [fetchReservations]);
 
   const updateReservation = (updated: Reservation) => {
     setReservations((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
@@ -85,7 +94,7 @@ const StaffReservations = () => {
       const { reservation } = await api.updateReservationStatus(reservationId, status);
       updateReservation(reservation);
       toast.success(`Reservation updated to ${status}`);
-      await loadTables();
+      await fetchReservations();
     } catch (error) {
       handleApiError(error, "Failed to update reservation status");
     } finally {
@@ -104,6 +113,8 @@ const StaffReservations = () => {
       case "confirmed":
       case "seated":
         return "bg-green-500";
+      case "completed":
+        return "bg-blue-500";
       case "canceled":
       case "cancelled":
       case "no_show":

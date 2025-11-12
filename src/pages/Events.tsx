@@ -3,13 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Calendar, Info, Minus, Plus } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
 
@@ -30,8 +23,6 @@ const Events = () => {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
-  const [infoEvent, setInfoEvent] = useState<EventItem | null>(null);
-  const [infoOpen, setInfoOpen] = useState(false);
 
   const fetchEvents = useCallback(
     async (signal?: AbortSignal) => {
@@ -105,13 +96,7 @@ const Events = () => {
   };
 
   const openInfo = (event: EventItem) => {
-    setInfoEvent(event);
-    setInfoOpen(true);
-  };
-
-  const closeInfo = () => {
-    setInfoOpen(false);
-    setInfoEvent(null);
+    navigate(`/events/${event.id}`, { state: { event } });
   };
 
   const renderImage = (event: EventItem, size: "sm" | "lg") => {
@@ -124,13 +109,14 @@ const Events = () => {
 
     const baseClasses =
       size === "sm"
-        ? "w-24 h-20 rounded-lg flex-shrink-0"
-        : "w-40 h-28 rounded-lg flex-shrink-0";
+        ? "w-24 h-20 flex-shrink-0"
+        : "w-40 h-28 flex-shrink-0";
+    const imageWrapper = `${baseClasses} rounded-2xl border border-border/50 bg-muted/30 flex items-center justify-center shadow-md overflow-hidden`;
 
     if (!event.image_url) {
       return (
         <div
-          className={`${baseClasses} bg-gradient-primary flex items-center justify-center shadow-md`}
+          className={`${imageWrapper} bg-gradient-primary border-none`}
         >
           <Calendar className={size === "sm" ? "h-6 w-6 text-white" : "h-8 w-8 text-white"} />
         </div>
@@ -139,15 +125,19 @@ const Events = () => {
 
     if (isImageLike) {
       return (
-        <div className={`${baseClasses} overflow-hidden shadow-md`}>
-          <img src={event.image_url} alt={event.name} className="w-full h-full object-cover" />
+        <div className={`${imageWrapper} p-1`}>
+          <img
+            src={event.image_url}
+            alt={event.name}
+            className="max-h-full max-w-full object-contain rounded-xl"
+          />
         </div>
       );
     }
 
     return (
       <div
-        className={`${baseClasses} bg-muted/40 flex items-center justify-center shadow-md ${
+        className={`${imageWrapper} bg-muted/40 ${
           size === "sm" ? "text-2xl" : "text-3xl"
         }`}
       >
@@ -345,72 +335,6 @@ const Events = () => {
           </div>
         </CardContent>
       </Card>
-      <Dialog open={infoOpen} onOpenChange={(open) => (open ? setInfoOpen(true) : closeInfo())}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{infoEvent?.name ?? "Event details"}</DialogTitle>
-            <DialogDescription>
-              Take a closer look at the event before completing your booking.
-            </DialogDescription>
-          </DialogHeader>
-          {infoEvent && (
-            <div className="space-y-4">
-              <div className="rounded-lg overflow-hidden border bg-muted/40">
-                {infoEvent.image_url ? (
-                  <img
-                    src={infoEvent.image_url}
-                    alt={infoEvent.name}
-                    className="w-full h-80 object-cover"
-                  />
-                ) : (
-                  <div className="h-80 flex items-center justify-center bg-muted">
-                    <Calendar className="h-10 w-10 text-muted-foreground" />
-                  </div>
-                )}
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Date</p>
-                  <p className="font-semibold">
-                    {infoEvent.date ? new Date(infoEvent.date).toLocaleString() : "TBA"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Price</p>
-                  <p className="font-semibold">฿{infoEvent.price}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Ticket Code Prefix</p>
-                  <p className="font-semibold">{infoEvent.ticketCodePrefix ?? "HAN"}</p>
-                </div>
-                {infoEvent.artist && (
-                  <div>
-                    <p className="text-muted-foreground">Artist</p>
-                    <p className="font-semibold">{infoEvent.artist}</p>
-                  </div>
-                )}
-              </div>
-              <div className="text-sm">
-                <p className="text-muted-foreground mb-1">Description</p>
-                <p>{infoEvent.description || "No additional details provided."}</p>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={closeInfo}>
-                  Close
-                </Button>
-                <Button
-                  onClick={() => {
-                    closeInfo();
-                    handleConfirmOrder(infoEvent);
-                  }}
-                >
-                  Order Tickets
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

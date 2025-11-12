@@ -75,15 +75,13 @@ const Menu = () => {
     return () => window.removeEventListener("menu-updated", handleRefresh);
   }, [fetchMenu]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    const loadReservationStatus = async () => {
+  const loadReservationStatus = useCallback(
+    async (signal?: AbortSignal) => {
       try {
         setCheckingReservation(true);
         setReservationError(null);
-        const { reservations = [] } = await api.getReservations(true, controller.signal);
-        if (controller.signal.aborted) {
+        const { reservations = [] } = await api.getReservations(true, signal);
+        if (signal?.aborted) {
           return;
         }
         const hasConfirmed = reservations.some((reservation: any) =>
@@ -91,22 +89,31 @@ const Menu = () => {
         );
         setHasConfirmedReservation(hasConfirmed);
       } catch (error) {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           handleApiError(error, "Failed to verify reservation status");
           setReservationError("Unable to verify your reservation status right now.");
           setHasConfirmedReservation(false);
         }
       } finally {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           setCheckingReservation(false);
         }
       }
-    };
+    },
+    [],
+  );
 
-    loadReservationStatus();
-
+  useEffect(() => {
+    const controller = new AbortController();
+    loadReservationStatus(controller.signal);
     return () => controller.abort();
-  }, []);
+  }, [loadReservationStatus]);
+
+  useEffect(() => {
+    const handler = () => loadReservationStatus();
+    window.addEventListener("day-closure-updated", handler);
+    return () => window.removeEventListener("day-closure-updated", handler);
+  }, [loadReservationStatus]);
 
   const activeItems = useMemo(
     () => menuItems.filter((item) => item.is_active !== false),

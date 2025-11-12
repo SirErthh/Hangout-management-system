@@ -335,8 +335,8 @@ const AdminEvents = () => {
         urlOrEmoji.startsWith("blob:") ||
         urlOrEmoji.startsWith("/"));
     return isImageURL ? (
-      <div className="w-full h-48 overflow-hidden rounded-t-lg">
-        <img src={urlOrEmoji} alt={name} className="w-full h-full object-cover" />
+      <div className="w-full h-48 rounded-t-lg bg-muted/30 flex items-center justify-center">
+        <img src={urlOrEmoji} alt={name} className="max-h-full max-w-full object-contain" />
       </div>
     ) : urlOrEmoji ? (
       <div className="w-full h-48 flex items-center justify-center text-6xl rounded-t-lg bg-muted/40">
@@ -462,8 +462,8 @@ const AdminEvents = () => {
                   Uploads support up to 2MB. You can also provide an emoji or hosted URL.
                 </p>
                 {imagePreview && (
-                  <div className="rounded-lg border overflow-hidden">
-                    <img src={imagePreview} alt="Event preview" className="h-40 w-full object-cover" />
+                  <div className="rounded-lg border overflow-hidden bg-muted/30 flex items-center justify-center">
+                    <img src={imagePreview} alt="Event preview" className="max-h-40 w-full object-contain" />
                   </div>
                 )}
                 {uploadingImage && (
