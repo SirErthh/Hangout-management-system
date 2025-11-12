@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Calendar, DollarSign, TrendingUp, Zap, ChevronRight } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
@@ -110,8 +111,9 @@ const AdminDashboard = () => {
       onClick={onClick}
       className="
         w-full rounded-2xl text-left
-        bg-primary/5 hover:bg-primary/10
-        ring-1 ring-primary/10 hover:ring-primary/20
+        bg-white/80 dark:bg-slate-900/60
+        border border-white/60 hover:border-primary/40
+        shadow-sm hover:shadow-glow
         transition-smooth
         px-4 py-4
         flex items-center justify-between gap-4
@@ -131,9 +133,32 @@ const AdminDashboard = () => {
 
   return (
     <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">Admin Dashboard</h1>
-        <p className="text-muted-foreground text-sm sm:text-base">Overview of your venue operations</p>
+      <div className="relative glass-panel gradient-subtle border-none shadow-glow p-6 sm:p-8 overflow-hidden">
+        <div className="absolute -top-10 -right-6 h-48 w-48 rounded-full bg-gradient-to-br from-primary to-secondary opacity-30 blur-3xl" />
+        <div className="absolute -bottom-12 -left-4 h-40 w-40 rounded-full bg-gradient-to-br from-accent to-primary opacity-20 blur-2xl" />
+        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.35em] text-muted-foreground">
+              Operations Command
+            </p>
+            <h1 className="text-3xl sm:text-4xl font-bold mb-2">Admin Dashboard</h1>
+            <p className="text-muted-foreground text-sm sm:text-base max-w-2xl">
+              Monitor the entire venue at a glance. Keep events, users, tickets, and finances in sync with one tap.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button className="gradient-button hover:brightness-110" onClick={() => goto("/admin/events")}>
+              Create Event
+            </Button>
+            <Button
+              variant="outline"
+              className="border border-white/70 bg-white/70 text-foreground hover:bg-white"
+              onClick={() => goto("/admin/closure")}
+            >
+              Day Closure
+            </Button>
+          </div>
+        </div>
       </div>
       {metricsError && <p className="text-sm text-destructive">{metricsError}</p>}
 
@@ -144,15 +169,15 @@ const AdminDashboard = () => {
           return (
             <Card
               key={idx}
-              className="glass-effect border-2 hover:shadow-xl transition-smooth cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
+              className="glass-panel border-none hover:shadow-glow transition-smooth cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
               role="button"
               tabIndex={0}
               onClick={stat.go}
               onKeyDown={(e) => (e.key === "Enter" ? stat.go() : null)}
               aria-label={`Open ${stat.title}`}
             >
-              <CardHeader className="pb-2">
-                <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${stat.gradient} flex items-center justify-center mb-2`}>
+              <CardHeader className="pb-2 space-y-3">
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center`}>
                   <Icon className="h-6 w-6 text-white" />
                 </div>
                 <CardDescription>{stat.title}</CardDescription>
@@ -171,7 +196,7 @@ const AdminDashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <Card className="glass-effect">
+        <Card className="glass-panel border-none">
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
             <CardDescription>Latest actions in the system</CardDescription>
@@ -179,7 +204,7 @@ const AdminDashboard = () => {
           <CardContent>
             <div className="space-y-4">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="flex items-center gap-4 p-3 rounded-lg bg-muted/50">
+                <div key={i} className="flex items-center gap-4 p-3 rounded-2xl bg-white/70 dark:bg-slate-900/50 border border-white/60">
                   <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
                   <div className="flex-1">
                     <p className="text-sm font-medium">New reservation created</p>
@@ -191,7 +216,7 @@ const AdminDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="glass-effect">
+        <Card className="glass-panel border-none">
           <CardHeader className="pb-3">
             {/* Prominent Quick Actions header */}
             <div className="flex items-center gap-3">

@@ -1,4 +1,5 @@
-import { User, LogOut, Settings } from "lucide-react";
+import { useEffect, useState } from "react";
+import { User, LogOut, Settings, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import {
@@ -15,8 +16,43 @@ interface TopBarProps {
   onLogout: () => void;
 }
 
+type ThemeMode = "light" | "dark";
+
+const applyTheme = (mode: ThemeMode) => {
+  if (typeof document === "undefined") {
+    return;
+  }
+  const root = document.documentElement;
+  if (mode === "dark") {
+    root.classList.add("dark");
+  } else {
+    root.classList.remove("dark");
+  }
+  localStorage.setItem("theme", mode);
+};
+
+const getInitialTheme = (): ThemeMode => {
+  if (typeof document === "undefined") {
+    return "dark";
+  }
+  const stored = localStorage.getItem("theme");
+  if (stored === "light" || stored === "dark") {
+    return stored;
+  }
+  return document.documentElement.classList.contains("dark") ? "dark" : "light";
+};
+
 const TopBar = ({ user, onLogout }: TopBarProps) => {
   const navigate = useNavigate();
+  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-gradient-primary backdrop-blur-lg">
@@ -31,6 +67,19 @@ const TopBar = ({ user, onLogout }: TopBarProps) => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            className="text-white hover:bg-white/20 h-9 w-9"
+          >
+            {theme === "dark" ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
+          </Button>
           {user ? (
             <>
               <DropdownMenu>

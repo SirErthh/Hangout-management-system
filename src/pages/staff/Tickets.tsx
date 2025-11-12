@@ -142,13 +142,13 @@ const StaffTickets = () => {
   const getStatusColor = (status: TicketOrder["status"]) => {
     switch (status) {
       case "pending":
-        return "bg-yellow-500";
+        return "bg-yellow-500 text-white";
       case "confirmed":
-        return "bg-green-500";
+        return "bg-green-500 text-white";
       case "cancelled":
-        return "bg-red-500";
+        return "bg-red-500 text-white";
       default:
-        return "bg-gray-500";
+        return "bg-gray-500 text-white";
     }
   };
 
@@ -290,7 +290,7 @@ const StaffTickets = () => {
                                     <CheckCircle className="h-4 w-4" />
                                   </Button>
                                 )}
-                                {isConfirmed && <Badge className="bg-green-500">✓</Badge>}
+                                {isConfirmed && <Badge className="bg-green-500 text-white">✓</Badge>}
                               </div>
                             );
                           })}

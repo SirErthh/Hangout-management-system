@@ -63,7 +63,7 @@ const ConfirmOrder = () => {
                 {orderDetails.date}
               </CardDescription>
             </div>
-            <Badge className="bg-green-500">Event Ticket</Badge>
+            <Badge className="bg-green-500 text-white">Event Ticket</Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">

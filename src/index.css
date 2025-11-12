@@ -141,7 +141,39 @@ All colors MUST be HSL.
   }
 
   .glass-effect {
-    @apply bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/20;
+    @apply bg-white/75 dark:bg-slate-900/70 backdrop-blur-2xl border border-white/40 shadow-[0_20px_45px_rgba(79,70,229,0.15)];
+  }
+
+  .glass-panel {
+    @apply bg-white/80 dark:bg-slate-900/70 backdrop-blur-2xl border border-white/50 rounded-3xl shadow-[0_25px_60px_rgba(15,23,42,0.15)];
+  }
+
+  .glow-border {
+    box-shadow: 0 0 25px rgba(139, 92, 246, 0.35);
+    border-color: rgba(139, 92, 246, 0.35) !important;
+  }
+
+  .gradient-button {
+    background-image: var(--gradient-primary);
+    color: var(--primary-foreground);
+    box-shadow: var(--shadow-glow);
+  }
+
+  .gradient-badge {
+    background-image: var(--gradient-accent);
+    color: var(--accent-foreground);
+    box-shadow: 0 8px 20px rgba(236, 72, 153, 0.25);
+  }
+
+  .neon-divider {
+    position: relative;
+  }
+
+  .neon-divider::after {
+    content: "";
+    @apply block w-full h-[2px] rounded-full;
+    background-image: var(--gradient-primary);
+    box-shadow: var(--shadow-glow);
   }
 
   .transition-smooth {

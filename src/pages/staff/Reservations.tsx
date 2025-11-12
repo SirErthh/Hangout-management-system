@@ -109,18 +109,18 @@ const StaffReservations = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
-        return "bg-yellow-500";
+        return "bg-yellow-500 text-white";
       case "confirmed":
       case "seated":
-        return "bg-green-500";
+        return "bg-green-500 text-white";
       case "completed":
-        return "bg-blue-500";
+        return "bg-blue-500 text-white";
       case "canceled":
       case "cancelled":
       case "no_show":
-        return "bg-red-500";
+        return "bg-red-500 text-white";
       default:
-        return "bg-blue-500";
+        return "bg-blue-500 text-white";
     }
   };
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Calendar, Info, Minus, Plus } from "lucide-react";
@@ -99,7 +100,22 @@ const Events = () => {
     navigate(`/events/${event.id}`, { state: { event } });
   };
 
-  const renderImage = (event: EventItem, size: "sm" | "lg") => {
+  const formatEventDate = (date?: string | null) => {
+    if (!date) {
+      return "Date TBA";
+    }
+    try {
+      return new Date(date).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return date;
+    }
+  };
+
+  const renderCoverImage = (event: EventItem) => {
     const isImageLike =
       typeof event.image_url === "string" &&
       (event.image_url.startsWith("http") ||
@@ -107,234 +123,171 @@ const Events = () => {
         event.image_url.startsWith("blob:") ||
         event.image_url.startsWith("/"));
 
-    const baseClasses =
-      size === "sm"
-        ? "w-24 h-20 flex-shrink-0"
-        : "w-40 h-28 flex-shrink-0";
-    const imageWrapper = `${baseClasses} rounded-2xl border border-border/50 bg-muted/30 flex items-center justify-center shadow-md overflow-hidden`;
+    const imageWrapper =
+      "w-full aspect-[16/9] rounded-[1.75rem] border border-white/60 bg-muted/40 flex items-center justify-center shadow-md overflow-hidden";
 
     if (!event.image_url) {
       return (
-        <div
-          className={`${imageWrapper} bg-gradient-primary border-none`}
-        >
-          <Calendar className={size === "sm" ? "h-6 w-6 text-white" : "h-8 w-8 text-white"} />
+        <div className={`${imageWrapper} gradient-primary border-none`}>
+          <Calendar className="h-10 w-10 text-white" />
         </div>
       );
     }
 
     if (isImageLike) {
       return (
-        <div className={`${imageWrapper} p-1`}>
+        <div className={`${imageWrapper} bg-white/40`}>
           <img
             src={event.image_url}
             alt={event.name}
-            className="max-h-full max-w-full object-contain rounded-xl"
+            className="h-full w-full object-contain"
           />
         </div>
       );
     }
 
     return (
-      <div
-        className={`${imageWrapper} bg-muted/40 ${
-          size === "sm" ? "text-2xl" : "text-3xl"
-        }`}
-      >
+      <div className={`${imageWrapper} bg-muted/40 text-5xl`}>
         {event.image_url}
       </div>
     );
   };
 
-  return (
-    <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">Browse Events</h1>
-        <p className="text-muted-foreground text-sm sm:text-base">
-          Check out our upcoming events and book your tickets
-        </p>
-      </div>
+  const renderEventCard = (event: EventItem) => {
+    const qty = quantities[event.id] || 1;
+    const eventDate = formatEventDate(event.date);
+    return (
+      <Card
+        key={event.id}
+        className="glass-panel border-none overflow-hidden shadow-sm hover:shadow-glow transition-smooth flex flex-col"
+      >
+        <div className="relative">
+          {renderCoverImage(event)}
+          <div className="absolute inset-x-6 bottom-6 flex flex-wrap items-center justify-between gap-2">
+            <Badge className="bg-white/80 text-foreground border border-white/60 font-medium shadow-sm">
+              {eventDate}
+            </Badge>
+            <span className="px-3 py-1 rounded-full bg-slate-900/85 text-white text-sm font-semibold shadow-glow">
+              ฿{event.price.toLocaleString()}
+            </span>
+          </div>
+        </div>
+        <CardContent className="space-y-4 p-5 sm:p-6 flex-1 flex flex-col">
+          <div className="space-y-2">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+              {event.artist || "Live performance"}
+            </p>
+            <h3 className="text-xl font-semibold">{event.name}</h3>
+            {event.description && (
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {event.description}
+              </p>
+            )}
+          </div>
 
-      {/* Mobile */}
-      <div className="block sm:hidden space-y-4">
-        {loading ? (
-          <Card>
-            <CardContent className="p-12 text-center text-muted-foreground">
-              Loading events...
-            </CardContent>
-          </Card>
-        ) : events.length === 0 ? (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">No events available. Please check back later.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          events.map((event) => (
-            <Card key={event.id} className="glass-effect">
-              <CardContent className="p-4">
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    {renderImage(event, "sm")}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-base mb-1">{event.name}</h3>
-                      <p className="text-xs text-muted-foreground">
-                        {event.date ? new Date(event.date).toLocaleDateString() : "-"}
-                      </p>
-                      <p className="text-lg font-bold mt-1">฿{event.price}</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-8 w-8"
-                        onClick={() => updateQuantity(event.id, -1)}
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-                      <Input
-                        type="number"
-                        value={quantities[event.id] || 1}
-                        onChange={(e) =>
-                          setQuantities((prev) => ({
-                            ...prev,
-                            [event.id]: Math.max(1, parseInt(e.target.value, 10) || 1),
-                          }))
-                        }
-                        className="w-16 text-center text-sm"
-                      />
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-8 w-8"
-                        onClick={() => updateQuantity(event.id, 1)}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center gap-2 flex-1 justify-end">
-                      <Button
-                        onClick={() => handleConfirmOrder(event)}
-                        className="bg-gradient-primary hover:opacity-90 flex-1"
-                        size="sm"
-                      >
-                        Order
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center gap-1"
-                        onClick={() => openInfo(event)}
-                      >
-                        <Info className="h-4 w-4" />
-                        Info
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline" className="bg-white/70 border-white/60 text-foreground shadow-sm">
+              Code: {event.ticketCodePrefix || "HAN"}
+            </Badge>
+            {typeof event.capacity === "number" && event.capacity > 0 && (
+              <Badge variant="outline" className="bg-white/70 border-white/60 text-foreground shadow-sm">
+                Capacity {event.capacity.toLocaleString()}
+              </Badge>
+            )}
+          </div>
 
-      {/* Desktop */}
-      <Card className="hidden sm:block">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-muted border-b">
-                <tr>
-                  <th className="text-left p-4 font-semibold text-sm">Event</th>
-                  <th className="text-left p-4 font-semibold text-sm">Date</th>
-                  <th className="text-left p-4 font-semibold text-sm">Price</th>
-                  <th className="text-left p-4 font-semibold text-sm">Quantity</th>
-                  <th className="text-left p-4 font-semibold text-sm">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td className="p-6 text-center text-muted-foreground" colSpan={5}>
-                      Loading events...
-                    </td>
-                  </tr>
-                ) : events.length === 0 ? (
-                  <tr>
-                    <td className="p-6 text-center text-muted-foreground" colSpan={5}>
-                      No events available. Please check back later.
-                    </td>
-                  </tr>
-                ) : (
-                  events.map((event) => (
-                    <tr
-                      key={event.id}
-                      className="border-b last:border-0 hover:bg-muted/50 transition-smooth"
-                    >
-                      <td className="p-4">
-                        <div className="flex items-center gap-4">
-                          {renderImage(event, "lg")}
-                          <span className="font-semibold">{event.name}</span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        {event.date ? new Date(event.date).toLocaleDateString() : "-"}
-                      </td>
-                      <td className="p-4 font-semibold">฿{event.price}</td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            onClick={() => updateQuantity(event.id, -1)}
-                          >
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                          <Input
-                            type="number"
-                            value={quantities[event.id] || 1}
-                            onChange={(e) =>
-                              setQuantities((prev) => ({
-                                ...prev,
-                                [event.id]: Math.max(1, parseInt(e.target.value, 10) || 1),
-                              }))
-                            }
-                            className="w-20 text-center"
-                          />
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            onClick={() => updateQuantity(event.id, 1)}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            onClick={() => handleConfirmOrder(event)}
-                            className="bg-gradient-primary hover:opacity-90"
-                          >
-                            Order
-                          </Button>
-                          <Button variant="outline" onClick={() => openInfo(event)}>
-                            <Info className="h-4 w-4 mr-1" />
-                            Info
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="mt-auto space-y-4">
+            <div className="flex flex-wrap items-center gap-3 rounded-full bg-muted/70 px-3 py-1">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-9 w-9 rounded-full border border-white/60 bg-white/80 text-foreground hover:bg-white"
+                onClick={() => updateQuantity(event.id, -1)}
+                aria-label="Decrease tickets"
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+              <Input
+                type="number"
+                value={qty}
+                onChange={(e) =>
+                  setQuantities((prev) => ({
+                    ...prev,
+                    [event.id]: Math.max(1, parseInt(e.target.value, 10) || 1),
+                  }))
+                }
+                className="w-16 text-center bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 text-base font-semibold"
+                min={1}
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-9 w-9 rounded-full border border-white/60 bg-white/80 text-foreground hover:bg-white"
+                onClick={() => updateQuantity(event.id, 1)}
+                aria-label="Increase tickets"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                onClick={() => handleConfirmOrder(event)}
+                className="gradient-button px-6 py-5 text-base font-semibold shadow-glow hover:brightness-110"
+              >
+                Order Tickets
+              </Button>
+              <Button
+                variant="outline"
+                className="border border-white/70 bg-white/70 text-foreground hover:bg-white"
+                onClick={() => openInfo(event)}
+              >
+                <Info className="h-4 w-4 mr-2" />
+                Details
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
+    );
+  };
+
+  return (
+    <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
+      <div className="relative glass-panel gradient-subtle border-none shadow-glow p-6 sm:p-8 space-y-4 overflow-hidden">
+        <div className="absolute -top-12 -right-12 h-48 w-48 rounded-full bg-gradient-to-br from-primary to-secondary opacity-30 blur-3xl" />
+        <div className="absolute -bottom-16 -left-8 h-40 w-40 rounded-full bg-gradient-to-br from-accent to-primary opacity-20 blur-2xl" />
+        <div className="relative space-y-3">
+          <p className="text-xs sm:text-sm uppercase tracking-[0.35em] text-muted-foreground">
+            Nightlife Highlights
+          </p>
+          <h1 className="text-3xl sm:text-4xl font-bold">Browse Events</h1>
+          <p className="text-muted-foreground text-sm sm:text-base max-w-2xl">
+            Check out our upcoming experiences, reserve your table, and secure tickets before the dance floor fills up.
+          </p>
+        </div>
+      </div>
+
+      {loading ? (
+        <Card className="glass-panel border-none">
+          <CardContent className="p-12 text-center text-muted-foreground">
+            Loading events...
+          </CardContent>
+        </Card>
+      ) : events.length === 0 ? (
+        <Card className="glass-panel border-none">
+          <CardContent className="p-12 text-center">
+            <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground">
+              No events available. Please check back later.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {events.map(renderEventCard)}
+        </div>
+      )}
     </div>
   );
 };

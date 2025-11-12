@@ -167,7 +167,7 @@ const DayClosure = () => {
           )}
         </div>
         {isClosed && (
-          <Badge className="bg-green-500">
+          <Badge className="bg-green-500 text-white">
             <CheckCircle className="h-4 w-4 mr-2" />
             Day Closed
           </Badge>

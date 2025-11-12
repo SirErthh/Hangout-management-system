@@ -77,13 +77,13 @@ const AdminUsers = () => {
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case "admin":
-        return "bg-red-500";
+        return "bg-red-500 text-white";
       case "staff":
-        return "bg-blue-500";
+        return "bg-blue-500 text-white";
       case "customer":
-        return "bg-green-500";
+        return "bg-green-500 text-white";
       default:
-        return "bg-gray-500";
+        return "bg-gray-500 text-white";
     }
   };
 

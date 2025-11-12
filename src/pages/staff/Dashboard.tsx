@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Ticket, BookOpen, UtensilsCrossed, Users, Zap, ChevronRight } from "lucide-react";
@@ -106,10 +107,10 @@ const StaffDashboard = () => {
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case "high": return "bg-red-500";
-      case "medium": return "bg-yellow-500";
-      case "low": return "bg-blue-500";
-      default: return "bg-gray-500";
+      case "high": return "bg-red-500 text-white";
+      case "medium": return "bg-yellow-500 text-white";
+      case "low": return "bg-blue-500 text-white";
+      default: return "bg-gray-500 text-white";
     }
   };
 
@@ -127,8 +128,9 @@ const StaffDashboard = () => {
       onClick={onClick}
       className="
         w-full rounded-2xl text-left
-        bg-primary/5 hover:bg-primary/10
-        ring-1 ring-primary/10 hover:ring-primary/20
+        bg-white/80 dark:bg-slate-900/60
+        border border-white/60 hover:border-primary/40
+        shadow-sm hover:shadow-glow
         transition-smooth
         px-4 py-4
         flex items-center justify-between gap-4
@@ -148,9 +150,33 @@ const StaffDashboard = () => {
 
   return (
     <div className="p-6 space-y-6 animate-slide-up">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Staff Dashboard</h1>
-        <p className="text-muted-foreground">Your tasks and operations overview</p>
+      <div className="relative glass-panel gradient-subtle border-none shadow-glow p-6 sm:p-8 overflow-hidden">
+        <div className="absolute -top-12 right-0 h-44 w-44 rounded-full bg-gradient-to-br from-primary to-secondary opacity-30 blur-3xl" />
+        <div className="absolute -bottom-8 left-4 h-32 w-32 rounded-full bg-gradient-to-br from-accent to-primary opacity-25 blur-2xl" />
+        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.35em] text-muted-foreground">Frontline Ops</p>
+            <h1 className="text-3xl sm:text-4xl font-bold mb-2">Staff Dashboard</h1>
+            <p className="text-muted-foreground max-w-2xl">
+              Track tickets, reservations, and kitchen orders in real time. Keep every guest experience flawless.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              className="gradient-button hover:brightness-110"
+              onClick={() => goto("/staff/tickets")}
+            >
+              Process Tickets
+            </Button>
+            <Button
+              variant="outline"
+              className="border border-white/70 bg-white/70 text-foreground hover:bg-white"
+              onClick={() => goto("/staff/fnb")}
+            >
+              View Kitchen
+            </Button>
+          </div>
+        </div>
       </div>
       {metricsError && (
         <p className="text-sm text-destructive">{metricsError}</p>
@@ -163,7 +189,7 @@ const StaffDashboard = () => {
           return (
             <Card
               key={idx}
-              className="glass-effect border-2 hover:shadow-lg transition-smooth cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
+              className="glass-panel border-none hover:shadow-glow transition-smooth cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
               role="button"
               tabIndex={0}
               onClick={stat.go}
@@ -185,7 +211,7 @@ const StaffDashboard = () => {
       </div>
 
       {/* Pending tasks - clickable rows */}
-      <Card className="glass-effect border-2">
+      <Card className="glass-panel border-none">
         <CardHeader>
           <CardTitle>Pending Tasks</CardTitle>
           <CardDescription>Items requiring your attention</CardDescription>
@@ -195,7 +221,7 @@ const StaffDashboard = () => {
             {pendingTasks.map((task) => (
               <div
                 key={task.id}
-                className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-smooth cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
+                className="flex items-center justify-between p-4 rounded-2xl bg-white/70 dark:bg-slate-900/60 border border-white/60 hover:border-primary/40 transition-smooth cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
                 role="button"
                 tabIndex={0}
                 onClick={() => gotoByType(task.type)}
@@ -221,7 +247,7 @@ const StaffDashboard = () => {
       </Card>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <Card className="glass-effect">
+        <Card className="glass-panel border-none">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
@@ -256,7 +282,7 @@ const StaffDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="glass-effect">
+        <Card className="glass-panel border-none">
           <CardHeader>
             <CardTitle>Today's Schedule</CardTitle>
           </CardHeader>

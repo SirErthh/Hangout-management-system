@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -205,39 +205,51 @@ const Menu = () => {
         image.startsWith("/"));
 
     return (
-      <Card key={item.id} className="group hover:shadow-xl transition-smooth border-2">
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              {isImageLike ? (
-                <div className="w-full h-32 mb-2 overflow-hidden rounded-lg">
-                  <img src={image} alt={item.name} className="w-full h-full object-cover" />
-                </div>
-              ) : (
-                <div className="text-4xl mb-2">{image || "🖼️"}</div>
-              )}
-              <CardTitle className="text-xl">{item.name}</CardTitle>
-              {item.description && <CardDescription>{item.description}</CardDescription>}
+      <Card
+        key={item.id}
+        className="glass-panel border-none group overflow-hidden transition-smooth hover:shadow-glow flex flex-col"
+      >
+        <div className="relative w-full h-40 rounded-[1.5rem] overflow-hidden border border-white/50 bg-muted/40">
+          {isImageLike ? (
+            <img src={image} alt={item.name} className="h-full w-full object-cover" />
+          ) : (
+            <div className="h-full w-full flex items-center justify-center text-5xl">
+              {image || "🖼️"}
             </div>
-            <Badge className="text-lg px-3 py-1">฿{item.price}</Badge>
+          )}
+          <Badge className="absolute top-3 left-3 bg-white/85 text-foreground border border-white/60 capitalize shadow-sm">
+            {item.type}
+          </Badge>
+          <span className="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-slate-900/85 text-white text-sm font-semibold shadow-glow">
+            ฿{item.price.toLocaleString()}
+          </span>
+        </div>
+        <CardContent className="p-5 flex flex-col gap-4 flex-1">
+          <div>
+            <CardTitle className="text-xl font-semibold">{item.name}</CardTitle>
+            {item.description && (
+              <CardDescription className="mt-1 text-sm leading-relaxed">
+                {item.description}
+              </CardDescription>
+            )}
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             {qty > 0 ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 rounded-full bg-muted/70 px-3 py-1">
                 <Button
                   size="icon"
-                  variant="outline"
+                  variant="ghost"
+                  className="h-8 w-8 rounded-full border border-white/60 bg-white/80 text-foreground hover:bg-white"
                   onClick={() => updateCart(item.id, -1)}
                   disabled={reservationBlocked}
                 >
                   <Minus className="h-4 w-4" />
                 </Button>
-                <span className="font-semibold text-lg w-8 text-center">{qty}</span>
+                <span className="font-semibold text-lg w-10 text-center">{qty}</span>
                 <Button
                   size="icon"
-                  variant="outline"
+                  variant="ghost"
+                  className="h-8 w-8 rounded-full border border-white/60 bg-white/80 text-foreground hover:bg-white"
                   onClick={() => updateCart(item.id, 1)}
                   disabled={reservationBlocked}
                 >
@@ -247,7 +259,7 @@ const Menu = () => {
             ) : (
               <Button
                 variant="outline"
-                className="gap-2"
+                className="gap-2 border border-white/70 bg-white/70 text-foreground hover:bg-white"
                 onClick={() => updateCart(item.id, 1)}
                 disabled={reservationBlocked}
               >
@@ -271,38 +283,60 @@ const Menu = () => {
 
   return (
     <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Food & Beverage Menu</h1>
-          <p className="text-muted-foreground">Select items and place your order</p>
+      <div className="relative glass-panel gradient-subtle border-none shadow-glow p-6 sm:p-8 space-y-4 overflow-hidden">
+        <div className="absolute -top-16 right-6 h-40 w-40 rounded-full bg-gradient-to-br from-primary to-secondary opacity-30 blur-3xl" />
+        <div className="absolute -bottom-10 left-0 h-32 w-32 rounded-full bg-gradient-to-br from-accent to-primary opacity-20 blur-2xl" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.35em] text-muted-foreground">
+              Signature Selections
+            </p>
+            <h1 className="text-3xl sm:text-4xl font-bold mb-2">Food & Beverage Menu</h1>
+            <p className="text-muted-foreground max-w-2xl">
+              Curated bites and cocktails for your table. Place orders once your reservation is confirmed and we’ll handle the rest.
+            </p>
+            <div className="flex flex-wrap gap-2 mt-4">
+              <Badge
+                variant={reservationBlocked ? "destructive" : "secondary"}
+                className="px-3 py-1 shadow-sm"
+              >
+                {reservationBlocked ? "Reservation required" : "Reservation confirmed"}
+              </Badge>
+              <Badge variant="outline" className="bg-white/80 border-white/60 text-foreground shadow-sm">
+                Cart: {getTotalItems()} items
+              </Badge>
+            </div>
+          </div>
+          <div className="shrink-0">
+            <Button
+              size="lg"
+              className="gap-2 gradient-button hover:brightness-110"
+              onClick={handleCheckout}
+              disabled={getTotalItems() === 0 || reservationBlocked}
+            >
+              <ShoppingCart className="h-4 w-4" />
+              Checkout ({getTotalItems()} items)
+            </Button>
+          </div>
         </div>
-        <Button
-          size="lg"
-          className="gap-2 bg-gradient-primary hover:opacity-90"
-          onClick={handleCheckout}
-          disabled={getTotalItems() === 0 || reservationBlocked}
-        >
-          <ShoppingCart className="h-4 w-4" />
-          Checkout ({getTotalItems()} items)
-        </Button>
       </div>
 
       {checkingReservation && (
-        <Alert>
+        <Alert className="glass-effect border-primary/20">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>Checking your reservation status...</AlertDescription>
         </Alert>
       )}
 
       {reservationError && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="glass-effect border-destructive/30">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{reservationError}</AlertDescription>
         </Alert>
       )}
 
       {!checkingReservation && !reservationError && !hasConfirmedReservation && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="glass-effect border-destructive/30">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             You need a confirmed table reservation before ordering food & beverages. Please reserve a table and wait
@@ -312,9 +346,19 @@ const Menu = () => {
       )}
 
       <Tabs defaultValue="food" className="space-y-6">
-        <TabsList className="grid grid-cols-2 sm:w-[360px]">
-          <TabsTrigger value="food">Food</TabsTrigger>
-          <TabsTrigger value="drink">Drinks</TabsTrigger>
+        <TabsList className="grid grid-cols-2 sm:w-[360px] rounded-full bg-white/70 backdrop-blur border border-white/60 shadow-sm">
+          <TabsTrigger
+            value="food"
+            className="rounded-full data-[state=active]:gradient-primary data-[state=active]:text-white"
+          >
+            Food
+          </TabsTrigger>
+          <TabsTrigger
+            value="drink"
+            className="rounded-full data-[state=active]:gradient-primary data-[state=active]:text-white"
+          >
+            Drinks
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="food">
