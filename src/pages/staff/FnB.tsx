@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { UtensilsCrossed, Clock, CheckCircle, Users, Calendar } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
 import { getStatusBadgeClass } from "@/lib/statusColors";
-import { usePagination } from "@/hooks/usePagination";
 import { PaginationControls } from "@/components/PaginationControls";
 
 type OrderItem = {
@@ -31,44 +30,88 @@ type Order = {
   items: OrderItem[];
 };
 
+const PAGE_SIZE = 25;
+const DEFAULT_STATS: Record<Order["status"], number> = {
+  pending: 0,
+  preparing: 0,
+  ready: 0,
+  completed: 0,
+  cancelled: 0,
+};
+
 const StaffFnB = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState({
+    total: 0,
+    per_page: PAGE_SIZE,
+    page: 1,
+    last_page: 1,
+  });
+  const [stats, setStats] = useState(DEFAULT_STATS);
 
-  const loadOrders = useCallback(
-    async (signal?: AbortSignal) => {
-      setLoading(true);
-      try {
-        const { orders: fetched } = await api.getFnbOrders(false, signal);
-        if (!signal?.aborted) {
-          setOrders(fetched ?? []);
-        }
-      } catch (error) {
-        if (!signal?.aborted) {
-          handleApiError(error, "Failed to load F&B orders");
-          setOrders([]);
-        }
-      } finally {
-        if (!signal?.aborted) {
-          setLoading(false);
-        }
+  const perPage = meta.per_page ?? PAGE_SIZE;
+  const totalOrders = meta.total ?? orders.length;
+  const totalPages = Math.max(1, Math.ceil(Math.max(totalOrders, 1) / perPage));
+  const startItem = totalOrders === 0 ? 0 : (page - 1) * perPage + 1;
+  const endItem = totalOrders === 0 ? 0 : Math.min(page * perPage, totalOrders);
+
+  const loadOrders = useCallback(async (pageToLoad: number, signal?: AbortSignal) => {
+    setLoading(true);
+    try {
+      const payload = await api.getFnbOrders({
+        mine: false,
+        page: pageToLoad,
+        perPage: PAGE_SIZE,
+        signal,
+      });
+
+      if (signal?.aborted) {
+        return;
       }
-    },
-    [],
-  );
+
+      setOrders(payload.orders ?? []);
+      setMeta(
+        payload.meta ?? {
+          total: payload.orders?.length ?? 0,
+          per_page: PAGE_SIZE,
+          page: pageToLoad,
+          last_page: 1,
+        },
+      );
+      setStats({
+        pending: payload.stats?.pending ?? 0,
+        preparing: payload.stats?.preparing ?? 0,
+        ready: payload.stats?.ready ?? 0,
+        completed: payload.stats?.completed ?? 0,
+        cancelled: payload.stats?.cancelled ?? 0,
+      });
+    } catch (error) {
+      if (!signal?.aborted) {
+        handleApiError(error, "Failed to load F&B orders");
+        setOrders([]);
+        setStats(DEFAULT_STATS);
+      }
+    } finally {
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
-    loadOrders(controller.signal);
+    loadOrders(page, controller.signal);
     return () => controller.abort();
-  }, [loadOrders]);
+  }, [loadOrders, page]);
 
   useEffect(() => {
-    const handler = () => loadOrders();
+    const handler = () => loadOrders(page);
     window.addEventListener("day-closure-updated", handler);
     return () => window.removeEventListener("day-closure-updated", handler);
-  }, [loadOrders]);
+  }, [loadOrders, page]);
 
   const updateOrderStatus = async (orderId: number, newStatus: Order["status"]) => {
     setUpdatingId(orderId);
@@ -76,6 +119,7 @@ const StaffFnB = () => {
       const { order } = await api.updateFnbOrderStatus(orderId, newStatus);
       setOrders((prev) => prev.map((o) => (o.id === order.id ? order : o)));
       toast.success(`Order #${orderId} → ${newStatus}`);
+      loadOrders(page);
     } catch (error) {
       handleApiError(error, "Failed to update order status");
     } finally {
@@ -99,8 +143,6 @@ const StaffFnB = () => {
     }
   };
 
-  const { page, setPage, totalPages, pageItems: pagedOrders, startItem, endItem, totalItems } = usePagination(orders);
-
   return (
     <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
@@ -116,9 +158,7 @@ const StaffFnB = () => {
             <CardDescription>Pending Orders</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">
-              {orders.filter((o) => o.status === "pending").length}
-            </p>
+            <p className="text-3xl font-bold">{stats.pending}</p>
           </CardContent>
         </Card>
         <Card className="glass-effect">
@@ -126,9 +166,7 @@ const StaffFnB = () => {
             <CardDescription>Preparing</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">
-              {orders.filter((o) => o.status === "preparing").length}
-            </p>
+            <p className="text-3xl font-bold">{stats.preparing}</p>
           </CardContent>
         </Card>
         <Card className="glass-effect">
@@ -136,9 +174,7 @@ const StaffFnB = () => {
             <CardDescription>Ready</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">
-              {orders.filter((o) => o.status === "ready").length}
-            </p>
+            <p className="text-3xl font-bold">{stats.ready}</p>
           </CardContent>
         </Card>
         <Card className="glass-effect">
@@ -146,27 +182,29 @@ const StaffFnB = () => {
             <CardDescription>Total Orders</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{orders.length}</p>
+            <p className="text-3xl font-bold">{totalOrders}</p>
           </CardContent>
         </Card>
       </div>
 
       {loading ? (
         <Card>
-          <CardContent className="p-12 text-center text-muted-foreground">
-            Loading orders...
-          </CardContent>
+          <CardContent className="p-12 text-center text-muted-foreground">Loading orders...</CardContent>
+        </Card>
+      ) : totalOrders === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center text-muted-foreground">No orders yet.</CardContent>
         </Card>
       ) : orders.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center text-muted-foreground">
-            No orders yet.
+            No orders on this page. Try a different page.
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-            {pagedOrders.map((order) => {
+            {orders.map((order) => {
             const StatusIcon = getStatusIcon(order.status);
             const createdDate = order.createdAt ? new Date(order.createdAt) : null;
             const createdTimeLabel = createdDate
@@ -262,7 +300,7 @@ const StaffFnB = () => {
             <p className="text-sm text-muted-foreground">
               Showing <span className="font-medium">{startItem}</span>-
               <span className="font-medium">{endItem}</span> of{" "}
-              <span className="font-medium">{totalItems}</span> orders
+              <span className="font-medium">{totalOrders}</span> orders
             </p>
             <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
           </div>

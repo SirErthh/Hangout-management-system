@@ -73,7 +73,7 @@ const MyOrders = () => {
         const [ticketRes, reservationRes, fnbRes] = await Promise.all([
           api.getTicketOrders(true, controller.signal),
           api.getReservations({ mine: true, signal: controller.signal }),
-          api.getFnbOrders(true, controller.signal),
+          api.getFnbOrders({ mine: true, signal: controller.signal }),
         ]);
 
         setTicketOrders(ticketRes.orders ?? []);

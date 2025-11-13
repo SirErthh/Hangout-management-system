@@ -93,9 +93,14 @@ final class FnbService
         return self::find($orderId) ?? [];
     }
 
-    public static function list(array $filters = []): array
+    public static function list(array $filters = [], int $page = 1, int $perPage = 25): array
     {
+        $perPage = max(1, min(200, $perPage));
+        $page = max(1, $page);
+        $offset = ($page - 1) * $perPage;
+
         $pdo = Database::connection();
+        [$whereClause, $params] = self::buildFilterClause($filters);
 
         $sql = 'SELECT o.id,
                        o.user_id,
@@ -109,31 +114,33 @@ final class FnbService
                        t.table_name
                 FROM FNB_ORDER o
                 INNER JOIN USERS u ON u.id = o.user_id
-                INNER JOIN VENUETABLE t ON t.id = o.venue_table_id';
-
-        $conditions = [];
-        $params = [];
-
-        if (isset($filters['user_id'])) {
-            $conditions[] = 'o.user_id = :user_id';
-            $params['user_id'] = $filters['user_id'];
-        }
-        if (isset($filters['status'])) {
-            $conditions[] = 'o.status = :status';
-            $params['status'] = $filters['status'];
-        }
-
-        if ($conditions) {
-            $sql .= ' WHERE ' . implode(' AND ', $conditions);
-        }
-
-        $sql .= ' ORDER BY o.created_at DESC';
+                INNER JOIN VENUETABLE t ON t.id = o.venue_table_id' .
+            $whereClause .
+            ' ORDER BY o.created_at DESC
+              LIMIT :limit OFFSET :offset';
 
         $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
+        self::bindParams($stmt, $params);
+        $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        return array_map(static fn(array $row) => self::transform($row), $rows);
+        $orders = array_map(static fn(array $row) => self::transform($row), $rows);
+        $total = self::countOrders($whereClause, $params);
+        $stats = self::statusTotals($whereClause, $params);
+        $lastPage = max(1, (int)ceil(max($total, 1) / $perPage));
+
+        return [
+            'orders' => $orders,
+            'meta' => [
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $perPage,
+                'last_page' => $lastPage,
+            ],
+            'stats' => $stats,
+        ];
     }
 
     public static function updateStatus(int $orderId, string $status): array
@@ -239,5 +246,76 @@ final class FnbService
         }
 
         return (int)$id;
+    }
+
+    /**
+     * @return array{0:string,1:array<string, int|string>}
+     */
+    private static function buildFilterClause(array $filters): array
+    {
+        $conditions = [];
+        $params = [];
+
+        if (isset($filters['user_id'])) {
+            $conditions[] = 'o.user_id = :user_id';
+            $params[':user_id'] = (int)$filters['user_id'];
+        }
+
+        if (isset($filters['status'])) {
+            $conditions[] = 'o.status = :status';
+            $params[':status'] = (string)$filters['status'];
+        }
+
+        $whereClause = $conditions ? ' WHERE ' . implode(' AND ', $conditions) : '';
+
+        return [$whereClause, $params];
+    }
+
+    private static function bindParams(\PDOStatement $stmt, array $params): void
+    {
+        foreach ($params as $placeholder => $value) {
+            $type = is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR;
+            $stmt->bindValue($placeholder, $value, $type);
+        }
+    }
+
+    private static function countOrders(string $whereClause, array $params): int
+    {
+        $stmt = Database::connection()->prepare('SELECT COUNT(*) FROM FNB_ORDER o' . $whereClause);
+        self::bindParams($stmt, $params);
+        $stmt->execute();
+        return (int)$stmt->fetchColumn();
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private static function statusTotals(string $whereClause, array $params): array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT o.status, COUNT(*) AS total
+             FROM FNB_ORDER o' . $whereClause . '
+             GROUP BY o.status'
+        );
+        self::bindParams($stmt, $params);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $defaults = [
+            'pending' => 0,
+            'preparing' => 0,
+            'ready' => 0,
+            'completed' => 0,
+            'cancelled' => 0,
+        ];
+
+        foreach ($rows as $row) {
+            $status = $row['status'] ?? null;
+            if ($status !== null && array_key_exists($status, $defaults)) {
+                $defaults[$status] = (int)$row['total'];
+            }
+        }
+
+        return $defaults;
     }
 }

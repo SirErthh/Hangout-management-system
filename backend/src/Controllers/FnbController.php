@@ -27,7 +27,16 @@ final class FnbController
             $filters['status'] = $status;
         }
 
-        return ['orders' => FnbService::list($filters)];
+        $page = max(1, (int)$request->query('page', 1));
+        $perPage = max(1, min(200, (int)$request->query('per_page', 25)));
+
+        $result = FnbService::list($filters, $page, $perPage);
+
+        return [
+            'orders' => $result['orders'],
+            'meta' => $result['meta'],
+            'stats' => $result['stats'],
+        ];
     }
 
     public function updateStatus(Request $request): array

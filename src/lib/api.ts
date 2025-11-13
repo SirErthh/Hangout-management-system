@@ -270,11 +270,35 @@ export const api = {
       auth: true,
       signal,
     }),
-  getFnbOrders: (mine = true, signal?: AbortSignal) =>
-    apiRequest<{ orders: any[] }>(`/api/fnb-orders${mine ? "?mine=1" : ""}`, {
-      auth: true,
-      signal,
-    }),
+  getFnbOrders: (options: {
+    mine?: boolean;
+    status?: string;
+    page?: number;
+    perPage?: number;
+    signal?: AbortSignal;
+  } = {}) => {
+    const params = new URLSearchParams();
+    if (options.mine !== false) {
+      params.set("mine", "1");
+    }
+    if (options.status) {
+      params.set("status", options.status);
+    }
+    if (options.page && options.page > 1) {
+      params.set("page", String(options.page));
+    }
+    if (options.perPage) {
+      params.set("per_page", String(options.perPage));
+    }
+    const query = params.toString();
+    return apiRequest<{ orders: any[]; meta?: { total: number; page: number; per_page: number; last_page: number }; stats?: Record<string, number> }>(
+      `/api/fnb-orders${query ? `?${query}` : ""}`,
+      {
+        auth: true,
+        signal: options.signal,
+      },
+    );
+  },
   updateFnbOrderStatus: (id: number, status: string) =>
     apiRequest<{ order: any }>(`/api/fnb-orders/${id}/status`, {
       method: "PATCH",
