@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { UtensilsCrossed, Clock, CheckCircle, Users, Calendar } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
 import { getStatusBadgeClass } from "@/lib/statusColors";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationControls } from "@/components/PaginationControls";
 
 type OrderItem = {
   id: number;
@@ -97,6 +99,8 @@ const StaffFnB = () => {
     }
   };
 
+  const { page, setPage, totalPages, pageItems: pagedOrders, startItem, endItem, totalItems } = usePagination(orders);
+
   return (
     <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
@@ -160,8 +164,9 @@ const StaffFnB = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          {orders.map((order) => {
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            {pagedOrders.map((order) => {
             const StatusIcon = getStatusIcon(order.status);
             const createdDate = order.createdAt ? new Date(order.createdAt) : null;
             const createdTimeLabel = createdDate
@@ -169,7 +174,7 @@ const StaffFnB = () => {
               : "-";
             const createdDateLabel = createdDate ? createdDate.toLocaleDateString() : "-";
             return (
-              <Card key={order.id} className="glass-effect border-2">
+              <Card key={order.id} className="glass-effect border-2 h-full flex flex-col">
                 <CardHeader>
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                     <div className="flex-1 space-y-1">
@@ -195,8 +200,8 @@ const StaffFnB = () => {
                     </Badge>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
+                <CardContent className="flex-1 flex flex-col">
+                  <div className="space-y-4 flex-1">
                     <div>
                       <p className="text-xs sm:text-sm font-medium mb-2">Order Items:</p>
                       <ul className="space-y-2">
@@ -252,6 +257,15 @@ const StaffFnB = () => {
               </Card>
             );
           })}
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t border-border/40">
+            <p className="text-sm text-muted-foreground">
+              Showing <span className="font-medium">{startItem}</span>-
+              <span className="font-medium">{endItem}</span> of{" "}
+              <span className="font-medium">{totalItems}</span> orders
+            </p>
+            <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
+          </div>
         </div>
       )}
     </div>

@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Calendar, Users, CheckCircle, XCircle, LayoutGrid } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
 import { getStatusBadgeClass } from "@/lib/statusColors";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationControls } from "@/components/PaginationControls";
 
 type Reservation = {
   id: number;
@@ -115,6 +117,10 @@ const StaffReservations = () => {
     };
   }, [reservations]);
 
+  const { page, setPage, totalPages, pageItems: pagedReservations, startItem, endItem, totalItems } = usePagination(
+    reservations,
+  );
+
   return (
     <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -220,7 +226,8 @@ const StaffReservations = () => {
         </Card>
       ) : (
         <div className="space-y-4">
-          {reservations.map((reservation) => {
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {pagedReservations.map((reservation) => {
             const reservedDate = reservation.reservedDate
               ? new Date(reservation.reservedDate)
               : null;
@@ -242,7 +249,7 @@ const StaffReservations = () => {
             const canSeatGuests = normalizedStatus === "confirmed";
 
             return (
-              <Card key={reservation.id} className="glass-effect border-2">
+              <Card key={reservation.id} className="glass-effect border-2 h-full flex flex-col">
                 <CardHeader>
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                     <div className="flex-1">
@@ -264,7 +271,7 @@ const StaffReservations = () => {
                     </Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 flex-1 flex flex-col">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs sm:text-sm">
                     <div>
                       <p className="text-muted-foreground">Date</p>
@@ -284,7 +291,7 @@ const StaffReservations = () => {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2 mt-auto">
                     {canMarkConfirmed && (
                       <Button
                         size="sm"
@@ -333,6 +340,15 @@ const StaffReservations = () => {
               </Card>
             );
           })}
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t border-border/40">
+            <p className="text-sm text-muted-foreground">
+              Showing <span className="font-medium">{startItem}</span>-
+              <span className="font-medium">{endItem}</span> of{" "}
+              <span className="font-medium">{totalItems}</span> reservations
+            </p>
+            <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
+          </div>
         </div>
       )}
     </div>

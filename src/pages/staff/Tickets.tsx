@@ -9,6 +9,8 @@ import { Ticket, CheckCircle, XCircle, Search, Eye, Loader2 } from "lucide-react
 import { api, handleApiError } from "@/lib/api";
 import { getStatusBadgeClass } from "@/lib/statusColors";
 import { Textarea } from "@/components/ui/textarea";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationControls } from "@/components/PaginationControls";
 
 type TicketOrder = {
   id: number;
@@ -20,6 +22,13 @@ type TicketOrder = {
   status: "pending" | "confirmed" | "cancelled";
   tickets: string[];
   confirmedTickets?: string[];
+  reservation?: {
+    table?: string | null;
+    tables?: string[];
+    status?: string;
+    holdExpiresAt?: string | null;
+    isPlaceholder?: boolean;
+  };
 };
 
 const StaffTickets = () => {
@@ -159,6 +168,11 @@ const StaffTickets = () => {
     return { pending, confirmed, total };
   }, [orders]);
 
+  const { page, setPage, totalPages, pageItems: pagedOrders, startItem, endItem, totalItems } = usePagination(
+    filteredOrders,
+    { resetKey: `${searchQuery}|${filteredOrders.length}` },
+  );
+
   return (
     <>
       <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
@@ -218,10 +232,11 @@ const StaffTickets = () => {
         </Card>
       ) : (
         <div className="space-y-4">
-          {filteredOrders.map((order) => {
-            const confirmedTickets = order.confirmedTickets ?? [];
-            return (
-              <Card key={order.id} className="glass-effect border-2">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {pagedOrders.map((order) => {
+              const confirmedTickets = order.confirmedTickets ?? [];
+              return (
+              <Card key={order.id} className="glass-effect border-2 h-full flex flex-col">
                 <CardHeader>
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                     <div className="flex-1">
@@ -238,7 +253,7 @@ const StaffTickets = () => {
                     </Badge>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex-1 flex flex-col space-y-3">
                   <div className="space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
@@ -341,6 +356,15 @@ const StaffTickets = () => {
               </Card>
             );
           })}
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t border-border/40">
+            <p className="text-sm text-muted-foreground">
+              Showing <span className="font-medium">{startItem}</span>-
+              <span className="font-medium">{endItem}</span> of{" "}
+              <span className="font-medium">{totalItems}</span> orders
+            </p>
+            <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
+          </div>
         </div>
       )}
       </div>

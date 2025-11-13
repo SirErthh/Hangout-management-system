@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Calendar, UtensilsCrossed, Ticket, Eye } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
 import { getStatusBadgeClass } from "@/lib/statusColors";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationControls } from "@/components/PaginationControls";
 
 type TicketOrder = {
   id: number;
@@ -58,6 +60,10 @@ const MyOrders = () => {
   const [fnbOrders, setFnbOrders] = useState<FnbOrder[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const ticketPagination = usePagination(ticketOrders);
+  const reservationPagination = usePagination(reservations);
+  const fnbPagination = usePagination(fnbOrders);
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -89,7 +95,7 @@ const MyOrders = () => {
     return () => controller.abort();
   }, []);
 
-  const ticketContent = useMemo(() => {
+  const renderTicketContent = () => {
     if (loading) {
       return (
         <Card>
@@ -109,85 +115,101 @@ const MyOrders = () => {
       );
     }
 
-    return ticketOrders.map((order) => {
-      const createdAt = order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "-";
-      return (
-        <Card key={order.id} className="glass-effect">
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-              <div className="flex-1">
-                <CardTitle className="text-base sm:text-lg">{order.event}</CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
-                  Order #{order.id} • {createdAt}
-                </CardDescription>
-              </div>
-              <Badge variant="outline" className={getStatusBadgeClass(order.status)}>
-                <span className="text-xs sm:text-sm capitalize">{order.status}</span>
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Quantity:</span>
-                <span className="font-medium">{order.quantity} tickets</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Total:</span>
-                <span className="font-bold">฿{order.total.toFixed(2)}</span>
-              </div>
-              {order.reservation && (
-                <div className="rounded-2xl border border-white/40 px-3 py-2 text-sm space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Table</span>
-                    <span className="font-semibold">
-                      {order.reservation.table ||
-                        (order.reservation.tables && order.reservation.tables.length
-                          ? order.reservation.tables.join(" + ")
-                          : "Unassigned")}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Status</span>
-                    <span className="capitalize">{order.reservation.status ?? "pending"}</span>
-                  </div>
-                  {order.reservation.isPlaceholder && (
-                    <p className="text-xs text-muted-foreground">
-                      Placeholder reservation — please see staff upon arrival.
-                    </p>
-                  )}
-                </div>
-              )}
-              {order.tickets && order.tickets.length > 0 && (
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" className="w-full">
-                      <Eye className="h-4 w-4 mr-2" />
-                      View Ticket Codes
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Ticket Codes</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-2">
-                      {order.tickets.map((code, idx) => (
-                        <div key={idx} className="p-3 bg-muted rounded-lg font-mono text-center text-lg">
-                          {code}
-                        </div>
-                      ))}
+    return (
+      <>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {ticketPagination.pageItems.map((order) => {
+            const createdAt = order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "-";
+            return (
+              <Card key={order.id} className="glass-effect h-full flex flex-col">
+                <CardHeader>
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div className="flex-1">
+                      <CardTitle className="text-base sm:text-lg">{order.event}</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        Order #{order.id} • {createdAt}
+                      </CardDescription>
                     </div>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      );
-    });
-  }, [loading, ticketOrders]);
+                    <Badge variant="outline" className={getStatusBadgeClass(order.status)}>
+                      <span className="text-xs sm:text-sm capitalize">{order.status}</span>
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Quantity:</span>
+                    <span className="font-medium">{order.quantity} tickets</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Total:</span>
+                    <span className="font-bold">฿{order.total.toFixed(2)}</span>
+                  </div>
+                  {order.reservation && (
+                    <div className="rounded-2xl border border-white/40 px-3 py-2 text-sm space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Table</span>
+                        <span className="font-semibold">
+                          {order.reservation.table ||
+                            (order.reservation.tables && order.reservation.tables.length
+                              ? order.reservation.tables.join(" + ")
+                              : "Unassigned")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Status</span>
+                        <span className="capitalize">{order.reservation.status ?? "pending"}</span>
+                      </div>
+                      {order.reservation.isPlaceholder && (
+                        <p className="text-xs text-muted-foreground">
+                          Placeholder reservation — please see staff upon arrival.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {order.tickets && order.tickets.length > 0 && (
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" className="w-full">
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Ticket Codes
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Ticket Codes</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-2">
+                          {order.tickets.map((code, idx) => (
+                            <div key={idx} className="p-3 bg-muted rounded-lg font-mono text-center text-lg">
+                              {code}
+                            </div>
+                          ))}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t border-border/40">
+          <p className="text-sm text-muted-foreground">
+            Showing <span className="font-medium">{ticketPagination.startItem}</span>-
+            <span className="font-medium">{ticketPagination.endItem}</span> of{" "}
+            <span className="font-medium">{ticketPagination.totalItems}</span> orders
+          </p>
+          <PaginationControls
+            page={ticketPagination.page}
+            totalPages={ticketPagination.totalPages}
+            onPageChange={ticketPagination.setPage}
+          />
+        </div>
+      </>
+    );
+  };
 
-  const reservationsContent = useMemo(() => {
+  const renderReservationsContent = () => {
     if (loading) {
       return (
         <Card>
@@ -209,66 +231,86 @@ const MyOrders = () => {
       );
     }
 
-    return reservations.map((reservation) => {
-      const reservedDate = reservation.reservedDate
-        ? new Date(reservation.reservedDate)
-        : null;
-      const dateLabel = reservedDate ? reservedDate.toLocaleDateString() : "-";
-      const timeLabel = reservedDate
-        ? reservedDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        : "-";
-      const tableLabel =
-        reservation.tables && reservation.tables.length > 0
-          ? reservation.tables.join(" + ")
-          : reservation.table;
+    return (
+      <>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {reservationPagination.pageItems.map((reservation) => {
+            const reservedDate = reservation.reservedDate
+              ? new Date(reservation.reservedDate)
+              : null;
+            const dateLabel = reservedDate ? reservedDate.toLocaleDateString() : "-";
+            const timeLabel = reservedDate
+              ? reservedDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : "-";
+            const tableLabel =
+              reservation.tables && reservation.tables.length > 0
+                ? reservation.tables.join(" + ")
+                : reservation.table;
 
-      return (
-        <Card key={reservation.id} className="glass-effect">
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-              <div className="flex-1">
-                <CardTitle className="text-base sm:text-lg">
-                  Reservation #{reservation.id}
-                </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
-                  {reservation.event}
-                </CardDescription>
-              </div>
-              <Badge variant="outline" className={getStatusBadgeClass(reservation.status)}>
-                <span className="text-xs sm:text-sm capitalize">{reservation.status.replace("_", " ")}</span>
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Date:</span>
-                <span className="font-medium">{dateLabel}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Time:</span>
-                <span className="font-medium">{timeLabel}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Party Size:</span>
-                <span className="font-medium">
-                  {reservation.partySize} {reservation.partySize === 1 ? "person" : "people"}
-                </span>
-              </div>
-              {tableLabel ? (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Table:</span>
-                  <span className="font-medium">{tableLabel}</span>
-                </div>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
-      );
-    });
-  }, [loading, reservations]);
+            return (
+              <Card key={reservation.id} className="glass-effect h-full flex flex-col">
+                <CardHeader>
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div className="flex-1">
+                      <CardTitle className="text-base sm:text-lg">
+                        Reservation #{reservation.id}
+                      </CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        {reservation.event}
+                      </CardDescription>
+                    </div>
+                    <Badge variant="outline" className={getStatusBadgeClass(reservation.status)}>
+                      <span className="text-xs sm:text-sm capitalize">
+                        {reservation.status.replace("_", " ")}
+                      </span>
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Date:</span>
+                      <span className="font-medium">{dateLabel}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Time:</span>
+                      <span className="font-medium">{timeLabel}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Party Size:</span>
+                      <span className="font-medium">
+                        {reservation.partySize} {reservation.partySize === 1 ? "person" : "people"}
+                      </span>
+                    </div>
+                    {tableLabel ? (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Table:</span>
+                        <span className="font-medium">{tableLabel}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t border-border/40">
+          <p className="text-sm text-muted-foreground">
+            Showing <span className="font-medium">{reservationPagination.startItem}</span>-
+            <span className="font-medium">{reservationPagination.endItem}</span> of{" "}
+            <span className="font-medium">{reservationPagination.totalItems}</span> reservations
+          </p>
+          <PaginationControls
+            page={reservationPagination.page}
+            totalPages={reservationPagination.totalPages}
+            onPageChange={reservationPagination.setPage}
+          />
+        </div>
+      </>
+    );
+  };
 
-  const fnbContent = useMemo(() => {
+  const renderFnbContent = () => {
     if (loading) {
       return (
         <Card>
@@ -288,50 +330,68 @@ const MyOrders = () => {
       );
     }
 
-    return fnbOrders.map((order) => {
-      const created = order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "-";
-      return (
-        <Card key={order.id} className="glass-effect">
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-              <div className="flex-1">
-                <CardTitle className="text-base sm:text-lg">Food & Beverage Order</CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
-                  Order #{order.id} • {created}
-                </CardDescription>
-              </div>
-              <Badge variant="outline" className={getStatusBadgeClass(order.status)}>
-                <span className="text-xs sm:text-sm capitalize">{order.status}</span>
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {order.items?.map((item, idx) => (
-                <div key={idx} className="text-sm space-y-1">
-                  <div className="flex justify-between">
-                    <span>
-                      {item.name} ×{item.quantity}
-                    </span>
-                    <span className="font-medium">
-                      ฿{((item.line_total ?? item.price * item.quantity) || 0).toFixed(2)}
-                    </span>
+    return (
+      <>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {fnbPagination.pageItems.map((order) => {
+            const created = order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "-";
+            return (
+              <Card key={order.id} className="glass-effect h-full flex flex-col">
+                <CardHeader>
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div className="flex-1">
+                      <CardTitle className="text-base sm:text-lg">Food & Beverage Order</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        Order #{order.id} • {created}
+                      </CardDescription>
+                    </div>
+                    <Badge variant="outline" className={getStatusBadgeClass(order.status)}>
+                      <span className="text-xs sm:text-sm capitalize">{order.status}</span>
+                    </Badge>
                   </div>
-                  {item.remark && (
-                    <p className="text-xs text-muted-foreground">Remark: {item.remark}</p>
-                  )}
-                </div>
-              ))}
-              <div className="pt-2 border-t flex justify-between text-sm">
-                <span className="text-muted-foreground">Total</span>
-                <span className="font-bold">฿{order.total.toFixed(2)}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      );
-    });
-  }, [loading, fnbOrders]);
+                </CardHeader>
+                <CardContent className="flex-1">
+                  <div className="space-y-3">
+                    {order.items?.map((item, idx) => (
+                      <div key={idx} className="text-sm space-y-1">
+                        <div className="flex justify-between">
+                          <span>
+                            {item.name} ×{item.quantity}
+                          </span>
+                          <span className="font-medium">
+                            ฿{((item.line_total ?? item.price * item.quantity) || 0).toFixed(2)}
+                          </span>
+                        </div>
+                        {item.remark && (
+                          <p className="text-xs text-muted-foreground">Remark: {item.remark}</p>
+                        )}
+                      </div>
+                    ))}
+                    <div className="pt-2 border-t flex justify-between text-sm">
+                      <span className="text-muted-foreground">Total</span>
+                      <span className="font-bold">฿{order.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t border-border/40">
+          <p className="text-sm text-muted-foreground">
+            Showing <span className="font-medium">{fnbPagination.startItem}</span>-
+            <span className="font-medium">{fnbPagination.endItem}</span> of{" "}
+            <span className="font-medium">{fnbPagination.totalItems}</span> orders
+          </p>
+          <PaginationControls
+            page={fnbPagination.page}
+            totalPages={fnbPagination.totalPages}
+            onPageChange={fnbPagination.setPage}
+          />
+        </div>
+      </>
+    );
+  };
 
   return (
     <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
@@ -357,15 +417,15 @@ const MyOrders = () => {
         </TabsList>
 
         <TabsContent value="tickets" className="mt-6 space-y-4">
-          {ticketContent}
+          {renderTicketContent()}
         </TabsContent>
 
         <TabsContent value="reservations" className="mt-6 space-y-4">
-          {reservationsContent}
+          {renderReservationsContent()}
         </TabsContent>
 
         <TabsContent value="fnb" className="mt-6 space-y-4">
-          {fnbContent}
+          {renderFnbContent()}
         </TabsContent>
       </Tabs>
     </div>
