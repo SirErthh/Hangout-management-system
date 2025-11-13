@@ -166,17 +166,20 @@ const Events = () => {
       >
         <div className="relative">
           {renderCoverImage(event)}
-          <div className="absolute inset-x-6 bottom-6 flex flex-wrap items-center justify-between gap-2">
-            <Badge className="bg-white/80 text-foreground border border-white/60 font-medium shadow-sm">
-              {eventDate}
-            </Badge>
-            <span className="px-3 py-1 rounded-full bg-slate-900/85 text-white text-sm font-semibold shadow-glow">
-              ฿{event.price.toLocaleString()}
-            </span>
-          </div>
         </div>
         <CardContent className="space-y-4 p-5 sm:p-6 flex-1 flex flex-col">
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <Badge className="bg-white/80 border border-white/60 font-medium shadow-sm !text-white">
+                {eventDate}
+              </Badge>
+              <div className="flex items-baseline gap-1 text-white px-3 py-1 rounded-full bg-gradient-to-r from-slate-900 to-slate-800 shadow-glow">
+                <span className="text-xs uppercase tracking-widest text-white/80">Price</span>
+                <span className="text-lg font-semibold leading-none">
+                  ฿{event.price.toLocaleString()}
+                </span>
+              </div>
+            </div>
             <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
               {event.artist || "Live performance"}
             </p>
@@ -204,11 +207,11 @@ const Events = () => {
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-9 w-9 rounded-full bg-foreground/95 text-background shadow hover:brightness-110 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring dark:bg-white dark:text-slate-900"
+                className="h-9 w-9 rounded-full bg-white text-slate-900 shadow hover:brightness-110 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring dark:bg-slate-950 dark:text-white"
                 onClick={() => updateQuantity(event.id, -1)}
                 aria-label="Decrease tickets"
               >
-                <Minus className="h-4 w-4" />
+                <Minus className="h-4 w-4 text-slate-900 dark:text-white" />
               </Button>
               <Input
                 type="number"
@@ -225,11 +228,11 @@ const Events = () => {
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-9 w-9 rounded-full bg-foreground/95 text-background shadow hover:brightness-110 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring dark:bg-white dark:text-slate-900"
+                className="h-9 w-9 rounded-full bg-white text-slate-900 shadow hover:brightness-110 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring dark:bg-slate-950 dark:text-white"
                 onClick={() => updateQuantity(event.id, 1)}
                 aria-label="Increase tickets"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4 text-slate-900 dark:text-white" />
               </Button>
             </div>
 

@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { toast } from "sonner";
 import { Ticket, CheckCircle, XCircle, Search, Eye, Loader2 } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
-import { getStatusBadgeClass } from "@/lib/statusColors";
+import { getFlatStatusBadgeClass, statusBadgeBase } from "@/lib/statusColors";
 import { Textarea } from "@/components/ui/textarea";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationControls } from "@/components/PaginationControls";
@@ -248,7 +248,10 @@ const StaffTickets = () => {
                         {order.customer} • {order.event}
                       </CardDescription>
                     </div>
-                    <Badge variant="outline" className={getStatusBadgeClass(order.status)}>
+                    <Badge
+                      variant="outline"
+                      className={`${statusBadgeBase} ${getFlatStatusBadgeClass(order.status)}`}
+                    >
                       <span className="text-xs sm:text-sm">{order.status}</span>
                     </Badge>
                   </div>

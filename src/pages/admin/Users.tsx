@@ -74,16 +74,18 @@ const AdminUsers = () => {
     }
   };
 
+  const roleBadgeClasses = "min-w-[88px] justify-center";
+
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case "admin":
-        return "bg-red-500 text-white";
+        return `${roleBadgeClasses} bg-purple-400 text-white shadow`;
       case "staff":
-        return "bg-blue-500 text-white";
+        return `${roleBadgeClasses} bg-pink-300 text-white shadow`;
       case "customer":
-        return "bg-green-500 text-white";
+        return `${roleBadgeClasses} bg-blue-400 text-white shadow`;
       default:
-        return "bg-gray-500 text-white";
+        return `${roleBadgeClasses} bg-gray-500 text-white`;
     }
   };
 
@@ -157,7 +159,7 @@ const AdminUsers = () => {
                     </TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
-                      <Badge className={getRoleBadgeColor(user.role ?? "customer")}>
+                      <Badge variant="outline" className={getRoleBadgeColor(user.role ?? "customer")}>
                         {user.role ?? "customer"}
                       </Badge>
                     </TableCell>

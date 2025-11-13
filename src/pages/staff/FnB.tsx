@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { UtensilsCrossed, Clock, CheckCircle, Users, Calendar } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
-import { getStatusBadgeClass } from "@/lib/statusColors";
+import { getFlatStatusBadgeClass, statusBadgeBase } from "@/lib/statusColors";
 import { PaginationControls } from "@/components/PaginationControls";
 
 type OrderItem = {
@@ -232,7 +232,10 @@ const StaffFnB = () => {
                         </div>
                       </div>
                     </div>
-                    <Badge variant="outline" className={getStatusBadgeClass(order.status)}>
+                    <Badge
+                      variant="outline"
+                      className={`${statusBadgeBase} ${getFlatStatusBadgeClass(order.status)}`}
+                    >
                       <StatusIcon className="h-3 w-3 mr-1" />
                       <span className="text-xs sm:text-sm capitalize">{order.status}</span>
                     </Badge>

@@ -217,7 +217,7 @@ const Menu = () => {
               {image || "🖼️"}
             </div>
           )}
-          <Badge className="absolute top-3 left-3 bg-white/85 text-foreground border border-white/60 capitalize shadow-sm">
+          <Badge className="absolute top-3 left-3 bg-white/85 border border-white/60 capitalize shadow-sm !text-white">
             {item.type}
           </Badge>
           <span className="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-slate-900/85 text-white text-sm font-semibold shadow-glow">

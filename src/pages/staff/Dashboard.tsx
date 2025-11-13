@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Ticket, BookOpen, UtensilsCrossed, Users, Zap, ChevronRight } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
 
@@ -48,28 +47,10 @@ const StaffDashboard = () => {
     };
   }, []);
 
-  const routeByType: Record<string, string> = {
-    ticket: "/staff/tickets",
-    reservation: "/staff/reservations",
-    fnb: "/staff/fnb",
-  };
-
   const goto = useCallback((path: string) => {
     if (!path) return;
     navigate(path);
   }, [navigate]);
-
-  const gotoByType = useCallback((type: string) => {
-    const path = routeByType[type] || "/";
-    goto(path);
-  }, [goto]);
-
-  const pendingTasks = [
-    { id: 1, type: "ticket", description: "Process ticket order #1234", priority: "high" },
-    { id: 2, type: "reservation", description: "Confirm table reservation for 6pm", priority: "medium" },
-    { id: 3, type: "fnb", description: "Kitchen order #5678 - Table 12", priority: "high" },
-    { id: 4, type: "reservation", description: "Follow up with customer for 8pm booking", priority: "low" }
-  ];
 
   const formatStatValue = (value: number) =>
     loadingMetrics ? "…" : value.toLocaleString();
@@ -104,15 +85,6 @@ const StaffDashboard = () => {
       go: () => goto("/staff/reservations"),
     },
   ];
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "high": return "bg-red-500 text-white";
-      case "medium": return "bg-yellow-500 text-white";
-      case "low": return "bg-blue-500 text-white";
-      default: return "bg-gray-500 text-white";
-    }
-  };
 
   // Reusable QuickAction row component (clean, left-aligned, better typography)
   const QuickAction = ({
@@ -210,103 +182,41 @@ const StaffDashboard = () => {
         })}
       </div>
 
-      {/* Pending tasks - clickable rows */}
+      {/* Quick Actions */}
       <Card className="glass-panel border-none">
-        <CardHeader>
-          <CardTitle>Pending Tasks</CardTitle>
-          <CardDescription>Items requiring your attention</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {pendingTasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-center justify-between p-4 rounded-2xl bg-white/70 dark:bg-slate-900/60 border border-white/60 hover:border-primary/40 transition-smooth cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
-                role="button"
-                tabIndex={0}
-                onClick={() => gotoByType(task.type)}
-                onKeyDown={(e) => (e.key === "Enter" ? gotoByType(task.type) : null)}
-                aria-label={`Open ${task.type} task ${task.id}`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                  <div>
-                    <p className="font-medium">{task.description}</p>
-                    <p className="text-xs text-muted-foreground capitalize">
-                      Type: {task.type}
-                    </p>
-                  </div>
-                </div>
-                <Badge className={getPriorityColor(task.priority)}>
-                  {task.priority}
-                </Badge>
-              </div>
-            ))}
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
+              <Zap className="h-5 w-5 text-primary" />
+            </div>
+            <CardTitle className="text-2xl md:text-3xl font-extrabold tracking-tight">
+              Quick Actions
+            </CardTitle>
           </div>
+          <div className="h-1 w-24 bg-gradient-to-r from-primary to-secondary rounded-full mt-3" />
+          <p className="text-sm md:text-base text-muted-foreground mt-2">
+            Jump straight to the most common staff flows.
+          </p>
+        </CardHeader>
+
+        <CardContent className="space-y-3">
+          <QuickAction
+            title="Process Ticket Orders"
+            subtitle="View and confirm ticket purchases"
+            onClick={() => goto("/staff/tickets")}
+          />
+          <QuickAction
+            title="Manage Reservations"
+            subtitle="Confirm or modify table bookings"
+            onClick={() => goto("/staff/reservations")}
+          />
+          <QuickAction
+            title="Kitchen Orders"
+            subtitle="View F&B orders and status"
+            onClick={() => goto("/staff/fnb")}
+          />
         </CardContent>
       </Card>
-
-      <div className="grid lg:grid-cols-2 gap-6">
-        <Card className="glass-panel border-none">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
-                <Zap className="h-5 w-5 text-primary" />
-              </div>
-              <CardTitle className="text-2xl md:text-3xl font-extrabold tracking-tight">
-                Quick Actions
-              </CardTitle>
-            </div>
-            <div className="h-1 w-24 bg-gradient-to-r from-primary to-secondary rounded-full mt-3" />
-            <p className="text-sm md:text-base text-muted-foreground mt-2">
-              Jump straight to the most common staff flows.
-            </p>
-          </CardHeader>
-
-          <CardContent className="space-y-3">
-            <QuickAction
-              title="Process Ticket Orders"
-              subtitle="View and confirm ticket purchases"
-              onClick={() => goto("/staff/tickets")}
-            />
-            <QuickAction
-              title="Manage Reservations"
-              subtitle="Confirm or modify table bookings"
-              onClick={() => goto("/staff/reservations")}
-            />
-            <QuickAction
-              title="Kitchen Orders"
-              subtitle="View F&B orders and status"
-              onClick={() => goto("/staff/fnb")}
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="glass-panel border-none">
-          <CardHeader>
-            <CardTitle>Today's Schedule</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {[
-                { time: "18:00", event: "Evening service starts" },
-                { time: "19:30", event: "Live music performance" },
-                { time: "21:00", event: "Kitchen last orders" },
-                { time: "23:00", event: "Venue closes" }
-              ].map((item, idx) => (
-                <div key={idx} className="flex items-center gap-4">
-                  <div className="w-16 text-sm font-medium text-muted-foreground">
-                    {item.time}
-                  </div>
-                  <div className="flex-1 p-3 rounded-lg bg-muted/50">
-                    <p className="text-sm font-medium">{item.event}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 };

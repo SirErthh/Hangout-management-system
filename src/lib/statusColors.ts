@@ -1,4 +1,4 @@
-const baseClasses = {
+const gradientClasses = {
   success:
     "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow ring-1 ring-emerald-400/30",
   warning:
@@ -8,28 +8,66 @@ const baseClasses = {
   neutral: "bg-muted text-foreground/80",
 };
 
-const dangerStatuses = new Set(["cancelled", "canceled", "no_show", "failed", "rejected"]);
+const flatClasses = {
+  success: "bg-emerald-500 text-white border border-emerald-200 shadow-sm",
+  warning: "bg-amber-500 text-white border border-amber-200 shadow-sm",
+  danger: "bg-red-500 text-white border border-red-200 shadow-sm",
+  neutral: "bg-slate-100 text-slate-900 border border-slate-200 shadow-sm",
+};
+
+const dangerStatuses = new Set(["cancelled", "canceled", "no_show", "failed", "rejected", "voided"]);
 const successStatuses = new Set([
   "confirmed",
   "completed",
+  "complete",
   "seated",
   "ready",
   "served",
   "paid",
   "verified",
   "success",
+  "active",
+]);
+const warningStatuses = new Set([
+  "pending",
+  "preparing",
+  "in_progress",
+  "processing",
+  "queued",
+  "holding",
+  "open",
+  "awaiting",
 ]);
 
 export const getStatusBadgeClass = (status?: string) => {
   if (!status) {
-    return baseClasses.neutral;
+    return gradientClasses.neutral;
   }
   const normalized = status.toLowerCase();
   if (dangerStatuses.has(normalized)) {
-    return baseClasses.danger;
+    return gradientClasses.danger;
   }
   if (successStatuses.has(normalized)) {
-    return baseClasses.success;
+    return gradientClasses.success;
   }
-  return baseClasses.warning;
+  return gradientClasses.warning;
 };
+
+export const getFlatStatusBadgeClass = (status?: string | null) => {
+  if (!status) {
+    return flatClasses.neutral;
+  }
+  const normalized = status.toLowerCase();
+  if (dangerStatuses.has(normalized)) {
+    return flatClasses.danger;
+  }
+  if (successStatuses.has(normalized)) {
+    return flatClasses.success;
+  }
+  if (warningStatuses.has(normalized)) {
+    return flatClasses.warning;
+  }
+  return flatClasses.neutral;
+};
+
+export const statusBadgeBase = "min-w-[120px] justify-center text-center px-3";

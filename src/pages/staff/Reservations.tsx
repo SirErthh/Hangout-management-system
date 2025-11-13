@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Calendar, Users, CheckCircle, XCircle, LayoutGrid } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
-import { getStatusBadgeClass } from "@/lib/statusColors";
+import { getFlatStatusBadgeClass, statusBadgeBase } from "@/lib/statusColors";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationControls } from "@/components/PaginationControls";
 
@@ -264,7 +264,10 @@ const StaffReservations = () => {
                         {reservation.partySize} guests
                       </CardDescription>
                     </div>
-                    <Badge variant="outline" className={getStatusBadgeClass(reservation.status)}>
+                    <Badge
+                      variant="outline"
+                      className={`${statusBadgeBase} ${getFlatStatusBadgeClass(reservation.status)}`}
+                    >
                       <span className="text-xs sm:text-sm capitalize">
                         {reservation.status.replace("_", " ")}
                       </span>

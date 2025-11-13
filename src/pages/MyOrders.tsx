@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Calendar, UtensilsCrossed, Ticket, Eye } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
-import { getStatusBadgeClass } from "@/lib/statusColors";
+import { getFlatStatusBadgeClass, statusBadgeBase } from "@/lib/statusColors";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationControls } from "@/components/PaginationControls";
 
@@ -130,7 +130,10 @@ const MyOrders = () => {
                         Order #{order.id} • {createdAt}
                       </CardDescription>
                     </div>
-                    <Badge variant="outline" className={getStatusBadgeClass(order.status)}>
+                    <Badge
+                      variant="outline"
+                      className={`${statusBadgeBase} ${getFlatStatusBadgeClass(order.status)}`}
+                    >
                       <span className="text-xs sm:text-sm capitalize">{order.status}</span>
                     </Badge>
                   </div>
@@ -259,7 +262,10 @@ const MyOrders = () => {
                         {reservation.event}
                       </CardDescription>
                     </div>
-                    <Badge variant="outline" className={getStatusBadgeClass(reservation.status)}>
+                    <Badge
+                      variant="outline"
+                      className={`${statusBadgeBase} ${getFlatStatusBadgeClass(reservation.status)}`}
+                    >
                       <span className="text-xs sm:text-sm capitalize">
                         {reservation.status.replace("_", " ")}
                       </span>
@@ -345,7 +351,10 @@ const MyOrders = () => {
                         Order #{order.id} • {created}
                       </CardDescription>
                     </div>
-                    <Badge variant="outline" className={getStatusBadgeClass(order.status)}>
+                    <Badge
+                      variant="outline"
+                      className={`${statusBadgeBase} ${getFlatStatusBadgeClass(order.status)}`}
+                    >
                       <span className="text-xs sm:text-sm capitalize">{order.status}</span>
                     </Badge>
                   </div>
