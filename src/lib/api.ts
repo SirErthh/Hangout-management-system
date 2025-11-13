@@ -163,7 +163,7 @@ export const api = {
       method: "DELETE",
       auth: true,
     }),
-  orderTickets: (eventId: number, payload: { quantity: number; price: number }) =>
+  orderTickets: (eventId: number, payload: { quantity: number; price: number; reservation: any }) =>
     apiRequest<{ order: any }>(`/api/events/${eventId}/orders`, {
       method: "POST",
       body: payload,
@@ -231,8 +231,25 @@ export const api = {
       body: payload,
       auth: true,
     }),
-  getReservations: (mine = true, signal?: AbortSignal) =>
-    apiRequest<{ reservations: any[] }>(`/api/reservations${mine ? "?mine=1" : ""}`, {
+  getReservations: (options?: { mine?: boolean; eventId?: number; status?: string; signal?: AbortSignal }) => {
+    const params = new URLSearchParams();
+    if (options?.mine !== false) {
+      params.set("mine", "1");
+    }
+    if (options?.eventId) {
+      params.set("event_id", String(options.eventId));
+    }
+    if (options?.status) {
+      params.set("status", options.status);
+    }
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return apiRequest<{ reservations: any[] }>(`/api/reservations${query}`, {
+      auth: true,
+      signal: options?.signal,
+    });
+  },
+  getAvailableTables: (eventId: number, signal?: AbortSignal) =>
+    apiRequest<{ tables: any[] }>(`/api/events/${eventId}/available-tables`, {
       auth: true,
       signal,
     }),

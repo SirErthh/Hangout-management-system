@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { toast } from "sonner";
 import { Ticket, CheckCircle, XCircle, Search, Eye, Loader2 } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
+import { getStatusBadgeClass } from "@/lib/statusColors";
 import { Textarea } from "@/components/ui/textarea";
 
 type TicketOrder = {
@@ -139,19 +140,6 @@ const StaffTickets = () => {
     }
   };
 
-  const getStatusColor = (status: TicketOrder["status"]) => {
-    switch (status) {
-      case "pending":
-        return "bg-yellow-500 text-white";
-      case "confirmed":
-        return "bg-green-500 text-white";
-      case "cancelled":
-        return "bg-red-500 text-white";
-      default:
-        return "bg-gray-500 text-white";
-    }
-  };
-
   const filteredOrders = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return orders;
@@ -245,7 +233,7 @@ const StaffTickets = () => {
                         {order.customer} • {order.event}
                       </CardDescription>
                     </div>
-                    <Badge className={getStatusColor(order.status)}>
+                    <Badge variant="outline" className={getStatusBadgeClass(order.status)}>
                       <span className="text-xs sm:text-sm">{order.status}</span>
                     </Badge>
                   </div>
@@ -261,6 +249,38 @@ const StaffTickets = () => {
                         ฿{Number(order.total || 0).toLocaleString()}
                       </p>
                     </div>
+                    {order.reservation && (
+                      <div className="rounded-2xl border border-white/30 p-3 text-sm space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Table</span>
+                          <span className="font-semibold">
+                            {order.reservation.table ||
+                              (order.reservation.tables?.length
+                                ? order.reservation.tables.join(" + ")
+                                : order.reservation.isPlaceholder
+                                  ? "Placeholder"
+                                  : "Unassigned")}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Reservation Status</span>
+                          <span className="capitalize">
+                            {order.reservation.status ?? "pending"}
+                          </span>
+                        </div>
+                        {order.reservation.holdExpiresAt && order.status === "pending" && (
+                          <p className="text-xs text-destructive">
+                            Hold expires at{" "}
+                            {new Date(order.reservation.holdExpiresAt).toLocaleString()}
+                          </p>
+                        )}
+                        {order.reservation.isPlaceholder && (
+                          <p className="text-xs text-muted-foreground">
+                            Placeholder guest — assign seating after confirming payment.
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     <Dialog>
                       <DialogTrigger asChild>

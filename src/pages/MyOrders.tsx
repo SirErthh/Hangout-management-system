@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Calendar, UtensilsCrossed, Ticket, Eye } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
+import { getStatusBadgeClass } from "@/lib/statusColors";
 
 type TicketOrder = {
   id: number;
@@ -15,6 +16,14 @@ type TicketOrder = {
   total: number;
   createdAt: string;
   tickets?: string[];
+  reservation?: {
+    id?: number;
+    table?: string;
+    tables?: string[];
+    status?: string;
+    isPlaceholder?: boolean;
+    holdExpiresAt?: string | null;
+  };
 };
 
 type Reservation = {
@@ -57,7 +66,7 @@ const MyOrders = () => {
       try {
         const [ticketRes, reservationRes, fnbRes] = await Promise.all([
           api.getTicketOrders(true, controller.signal),
-          api.getReservations(true, controller.signal),
+          api.getReservations({ mine: true, signal: controller.signal }),
           api.getFnbOrders(true, controller.signal),
         ]);
 
@@ -79,26 +88,6 @@ const MyOrders = () => {
 
     return () => controller.abort();
   }, []);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "bg-yellow-500 text-white";
-      case "confirmed":
-      case "ready":
-      case "prepared":
-        return "bg-blue-500 text-white";
-      case "completed":
-      case "seated":
-        return "bg-green-500 text-white";
-      case "cancelled":
-      case "canceled":
-      case "no_show":
-        return "bg-red-500 text-white";
-      default:
-        return "bg-gray-500 text-white";
-    }
-  };
 
   const ticketContent = useMemo(() => {
     if (loading) {
@@ -132,7 +121,7 @@ const MyOrders = () => {
                   Order #{order.id} • {createdAt}
                 </CardDescription>
               </div>
-              <Badge className={getStatusColor(order.status)}>
+              <Badge variant="outline" className={getStatusBadgeClass(order.status)}>
                 <span className="text-xs sm:text-sm capitalize">{order.status}</span>
               </Badge>
             </div>
@@ -147,6 +136,28 @@ const MyOrders = () => {
                 <span className="text-muted-foreground">Total:</span>
                 <span className="font-bold">฿{order.total.toFixed(2)}</span>
               </div>
+              {order.reservation && (
+                <div className="rounded-2xl border border-white/40 px-3 py-2 text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Table</span>
+                    <span className="font-semibold">
+                      {order.reservation.table ||
+                        (order.reservation.tables && order.reservation.tables.length
+                          ? order.reservation.tables.join(" + ")
+                          : "Unassigned")}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Status</span>
+                    <span className="capitalize">{order.reservation.status ?? "pending"}</span>
+                  </div>
+                  {order.reservation.isPlaceholder && (
+                    <p className="text-xs text-muted-foreground">
+                      Placeholder reservation — please see staff upon arrival.
+                    </p>
+                  )}
+                </div>
+              )}
               {order.tickets && order.tickets.length > 0 && (
                 <Dialog>
                   <DialogTrigger asChild>
@@ -223,7 +234,7 @@ const MyOrders = () => {
                   {reservation.event}
                 </CardDescription>
               </div>
-              <Badge className={getStatusColor(reservation.status)}>
+              <Badge variant="outline" className={getStatusBadgeClass(reservation.status)}>
                 <span className="text-xs sm:text-sm capitalize">{reservation.status.replace("_", " ")}</span>
               </Badge>
             </div>
@@ -289,7 +300,7 @@ const MyOrders = () => {
                   Order #{order.id} • {created}
                 </CardDescription>
               </div>
-              <Badge className={getStatusColor(order.status)}>
+              <Badge variant="outline" className={getStatusBadgeClass(order.status)}>
                 <span className="text-xs sm:text-sm capitalize">{order.status}</span>
               </Badge>
             </div>

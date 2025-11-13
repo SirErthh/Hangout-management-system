@@ -243,6 +243,9 @@ final class SchemaService
 
         $columns = [
             'assigned_table_id' => 'ALTER TABLE TABLE_RESERVATION ADD COLUMN assigned_table_id BIGINT NULL',
+            'ticket_order_id' => 'ALTER TABLE TABLE_RESERVATION ADD COLUMN ticket_order_id BIGINT NULL',
+            'is_placeholder' => 'ALTER TABLE TABLE_RESERVATION ADD COLUMN is_placeholder TINYINT(1) NOT NULL DEFAULT 0',
+            'hold_expires_at' => 'ALTER TABLE TABLE_RESERVATION ADD COLUMN hold_expires_at DATETIME NULL',
         ];
 
         foreach ($columns as $column => $sql) {
@@ -273,6 +276,48 @@ final class SchemaService
                     FOREIGN KEY (assigned_table_id) REFERENCES VENUETABLE(id)
                     ON DELETE SET NULL ON UPDATE RESTRICT'
             );
+        }
+
+        $ticketFkExists = $pdo->prepare(
+            'SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+             WHERE TABLE_SCHEMA = :schema AND TABLE_NAME = :table AND CONSTRAINT_NAME = :constraint'
+        );
+        $ticketFkExists->execute([
+            'schema' => $schema,
+            'table' => 'TABLE_RESERVATION',
+            'constraint' => 'fk_table_reservation_ticket_order',
+        ]);
+
+        if ((int)$ticketFkExists->fetchColumn() === 0) {
+            $pdo->exec(
+                'ALTER TABLE TABLE_RESERVATION
+                    ADD CONSTRAINT fk_table_reservation_ticket_order
+                    FOREIGN KEY (ticket_order_id) REFERENCES TICKETS_ORDER(id)
+                    ON DELETE SET NULL ON UPDATE RESTRICT'
+            );
+        }
+
+        $indexes = [
+            'idx_res_ticket_order' => 'CREATE INDEX idx_res_ticket_order ON TABLE_RESERVATION(ticket_order_id)',
+            'idx_res_hold_expires' => 'CREATE INDEX idx_res_hold_expires ON TABLE_RESERVATION(hold_expires_at)',
+        ];
+
+        foreach ($indexes as $index => $sql) {
+            $indexExists = $pdo->prepare(
+                'SELECT COUNT(*)
+                 FROM INFORMATION_SCHEMA.STATISTICS
+                 WHERE TABLE_SCHEMA = :schema
+                   AND TABLE_NAME = :table
+                   AND INDEX_NAME = :index'
+            );
+            $indexExists->execute([
+                'schema' => $schema,
+                'table' => 'TABLE_RESERVATION',
+                'index' => $index,
+            ]);
+            if ((int)$indexExists->fetchColumn() === 0) {
+                $pdo->exec($sql);
+            }
         }
     }
 

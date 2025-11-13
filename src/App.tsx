@@ -14,6 +14,7 @@ import Profile from "./pages/Profile";
 import Customer from "./pages/Customer";
 import Events from "./pages/Events";
 import ConfirmOrder from "./pages/ConfirmOrder";
+import TicketSeating from "./pages/TicketSeating";
 import Reserve from "./pages/Reserve";
 import ReservationConfirm from "./pages/ReservationConfirm";
 import Menu from "./pages/Menu";
@@ -114,6 +115,10 @@ const App = () => {
                   <Route 
                     path="/events" 
                     element={<Events />} 
+                  />
+                  <Route
+                    path="/events/:id/seating"
+                    element={currentUser?.role === 'customer' ? <TicketSeating /> : <Navigate to="/login" replace />}
                   />
                   <Route
                     path="/events/:id"

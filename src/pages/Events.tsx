@@ -12,6 +12,7 @@ type EventItem = {
   name: string;
   image_url?: string;
   date?: string | null;
+  starts_at?: string | null;
   price: number;
   ticketCodePrefix?: string;
   description?: string | null;
@@ -81,17 +82,19 @@ const Events = () => {
 
   const handleConfirmOrder = (event: EventItem) => {
     const qty = quantities[event.id] || 1;
-    navigate("/confirm-order", {
+    navigate(`/events/${event.id}/seating`, {
       state: {
         order: {
           eventId: event.id,
           event: event.name,
           date: event.date,
+          startsAt: event.starts_at,
           price: event.price,
           quantity: qty,
           total: event.price * qty,
           ticketCodePrefix: event.ticketCodePrefix || "HAN",
         },
+        event,
       },
     });
   };
@@ -197,11 +200,11 @@ const Events = () => {
           </div>
 
           <div className="mt-auto space-y-4">
-            <div className="flex flex-wrap items-center gap-3 rounded-full bg-muted/70 px-3 py-1">
+            <div className="flex flex-wrap items-center gap-3 rounded-full border border-border/60 bg-background/95 text-foreground shadow-sm dark:border-white/10 dark:bg-slate-900/80 px-3 py-1">
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-9 w-9 rounded-full border border-white/60 bg-white/80 text-foreground hover:bg-white"
+                className="h-9 w-9 rounded-full bg-foreground/95 text-background shadow hover:brightness-110 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring dark:bg-white dark:text-slate-900"
                 onClick={() => updateQuantity(event.id, -1)}
                 aria-label="Decrease tickets"
               >
@@ -216,13 +219,13 @@ const Events = () => {
                     [event.id]: Math.max(1, parseInt(e.target.value, 10) || 1),
                   }))
                 }
-                className="w-16 text-center bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 text-base font-semibold"
+                className="w-16 rounded-full border border-border/70 bg-background text-center text-base font-semibold focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 dark:border-white/20 dark:bg-slate-900/60"
                 min={1}
               />
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-9 w-9 rounded-full border border-white/60 bg-white/80 text-foreground hover:bg-white"
+                className="h-9 w-9 rounded-full bg-foreground/95 text-background shadow hover:brightness-110 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring dark:bg-white dark:text-slate-900"
                 onClick={() => updateQuantity(event.id, 1)}
                 aria-label="Increase tickets"
               >

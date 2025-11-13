@@ -155,7 +155,7 @@ All colors MUST be HSL.
 
   .gradient-button {
     background-image: var(--gradient-primary);
-    color: var(--primary-foreground);
+    color: #ffffff;
     box-shadow: var(--shadow-glow);
   }
 

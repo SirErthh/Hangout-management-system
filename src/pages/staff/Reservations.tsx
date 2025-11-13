@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Calendar, Users, CheckCircle, XCircle, LayoutGrid } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
+import { getStatusBadgeClass } from "@/lib/statusColors";
 
 type Reservation = {
   id: number;
@@ -50,7 +51,7 @@ const StaffReservations = () => {
       setLoading(true);
       try {
         const [reservationsRes, tablesRes] = await Promise.all([
-          api.getReservations(false, signal),
+          api.getReservations({ mine: false, signal }),
           api.getTables(signal),
         ]);
         if (!signal?.aborted) {
@@ -104,24 +105,6 @@ const StaffReservations = () => {
 
   const handleManualAssign = (reservation: Reservation) => {
     navigate("/staff/table-assignment", { state: { reservation } });
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "bg-yellow-500 text-white";
-      case "confirmed":
-      case "seated":
-        return "bg-green-500 text-white";
-      case "completed":
-        return "bg-blue-500 text-white";
-      case "canceled":
-      case "cancelled":
-      case "no_show":
-        return "bg-red-500 text-white";
-      default:
-        return "bg-blue-500 text-white";
-    }
   };
 
   const summary = useMemo(() => {
@@ -274,7 +257,7 @@ const StaffReservations = () => {
                         {reservation.partySize} guests
                       </CardDescription>
                     </div>
-                    <Badge className={getStatusColor(reservation.status)}>
+                    <Badge variant="outline" className={getStatusBadgeClass(reservation.status)}>
                       <span className="text-xs sm:text-sm capitalize">
                         {reservation.status.replace("_", " ")}
                       </span>

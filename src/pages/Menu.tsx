@@ -80,7 +80,7 @@ const Menu = () => {
       try {
         setCheckingReservation(true);
         setReservationError(null);
-        const { reservations = [] } = await api.getReservations(true, signal);
+        const { reservations = [] } = await api.getReservations({ mine: true, signal });
         if (signal?.aborted) {
           return;
         }

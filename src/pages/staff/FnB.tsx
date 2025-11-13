@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { UtensilsCrossed, Clock, CheckCircle, Users, Calendar } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
+import { getStatusBadgeClass } from "@/lib/statusColors";
 
 type OrderItem = {
   id: number;
@@ -77,23 +78,6 @@ const StaffFnB = () => {
       handleApiError(error, "Failed to update order status");
     } finally {
       setUpdatingId(null);
-    }
-  };
-
-  const getStatusColor = (status: Order["status"]) => {
-    switch (status) {
-      case "pending":
-        return "bg-yellow-500 text-white";
-      case "preparing":
-        return "bg-blue-500 text-white";
-      case "ready":
-        return "bg-green-500 text-white";
-      case "completed":
-        return "bg-gray-500 text-white";
-      case "cancelled":
-        return "bg-red-500 text-white";
-      default:
-        return "bg-gray-500 text-white";
     }
   };
 
@@ -205,7 +189,7 @@ const StaffFnB = () => {
                         </div>
                       </div>
                     </div>
-                    <Badge className={getStatusColor(order.status)}>
+                    <Badge variant="outline" className={getStatusBadgeClass(order.status)}>
                       <StatusIcon className="h-3 w-3 mr-1" />
                       <span className="text-xs sm:text-sm capitalize">{order.status}</span>
                     </Badge>

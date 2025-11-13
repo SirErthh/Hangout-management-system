@@ -24,6 +24,9 @@ final class ReservationService
                 status,
                 note,
                 assigned_table_id,
+                ticket_order_id,
+                is_placeholder,
+                hold_expires_at,
                 created_at
             ) VALUES (
                 :user_id,
@@ -33,6 +36,9 @@ final class ReservationService
                 :status,
                 :note,
                 :assigned_table_id,
+                :ticket_order_id,
+                :is_placeholder,
+                :hold_expires_at,
                 NOW()
             )'
         );
@@ -42,9 +48,12 @@ final class ReservationService
             'event_id' => $data['event_id'],
             'partysize' => $data['party_size'],
             'reserved_date' => $data['reserved_date'],
-            'status' => 'pending',
+            'status' => $data['status'] ?? 'pending',
             'note' => $data['note'] ?? null,
             'assigned_table_id' => $data['assigned_table_id'] ?? null,
+            'ticket_order_id' => $data['ticket_order_id'] ?? null,
+            'is_placeholder' => isset($data['is_placeholder']) ? (int)$data['is_placeholder'] : 0,
+            'hold_expires_at' => $data['hold_expires_at'] ?? null,
         ]);
 
         return self::find((int)$pdo->lastInsertId()) ?? [];
@@ -66,7 +75,10 @@ final class ReservationService
                        u.lname,
                        e.title AS event_title,
                        t.table_name,
-                       t.capacity AS table_capacity
+                       t.capacity AS table_capacity,
+                       r.ticket_order_id,
+                       r.is_placeholder,
+                       r.hold_expires_at
                 FROM TABLE_RESERVATION r
                 INNER JOIN USERS u ON u.id = r.user_id
                 INNER JOIN EVENTS e ON e.id = r.event_id
@@ -84,6 +96,24 @@ final class ReservationService
             $conditions[] = 'r.status = :status';
             $params['status'] = $filters['status'];
         }
+
+        if (isset($filters['event_id'])) {
+            $conditions[] = 'r.event_id = :event_id';
+            $params['event_id'] = (int)$filters['event_id'];
+        }
+
+        if (!empty($filters['status_in']) && is_array($filters['status_in'])) {
+            $placeholders = [];
+            foreach (array_values($filters['status_in']) as $index => $status) {
+                $key = 'status_in_' . $index;
+                $placeholders[] = ':' . $key;
+                $params[$key] = $status;
+            }
+            if ($placeholders) {
+                $conditions[] = 'r.status IN (' . implode(',', $placeholders) . ')';
+            }
+        }
+
 
         if ($conditions) {
             $sql .= ' WHERE ' . implode(' AND ', $conditions);
@@ -125,8 +155,16 @@ final class ReservationService
             );
             $update->execute(['status' => $status, 'id' => $id]);
 
+            if (in_array($status, ['confirmed', 'seated'], true)) {
+                self::clearHoldMeta($pdo, $id);
+            }
+
             if ($status === 'seated' && $currentStatus !== 'seated') {
                 self::callStartSession($pdo, $id, $actor['id'] ?? null);
+            }
+
+            if (in_array($status, ['canceled', 'no_show'], true)) {
+                self::releaseTablesInternal($pdo, $id);
             }
 
             if (in_array($status, ['completed', 'no_show'], true) && $currentStatus !== $status) {
@@ -142,12 +180,12 @@ final class ReservationService
         return self::find($id) ?? [];
     }
 
-    public static function assignTable(int $reservationId, int $tableId, ?array $actor = null): array
+    public static function assignTable(int $reservationId, int $tableId, ?array $actor = null, string $nextStatus = 'confirmed'): array
     {
-        return self::assignTables($reservationId, [$tableId], $actor);
+        return self::assignTables($reservationId, [$tableId], $actor, $nextStatus);
     }
 
-    public static function assignTables(int $reservationId, array $tableIds, ?array $actor = null): array
+    public static function assignTables(int $reservationId, array $tableIds, ?array $actor = null, string $nextStatus = 'confirmed'): array
     {
         $filtered = array_values(array_unique(array_map('intval', $tableIds)));
         $filtered = array_filter($filtered, static fn(int $id) => $id > 0);
@@ -155,13 +193,21 @@ final class ReservationService
             throw new RuntimeException('Table selection is required', 422);
         }
 
+        $allowedStatuses = ['pending', 'confirmed', 'seated'];
+        if (!in_array($nextStatus, $allowedStatuses, true)) {
+            throw new RuntimeException('Invalid reservation status for assignment', 422);
+        }
+
         $pdo = Database::connection();
         self::ensurePivotTable($pdo);
         self::setAppUserContext($pdo, $actor['id'] ?? null);
-        $pdo->beginTransaction();
+        $startedTransaction = !$pdo->inTransaction();
+        if ($startedTransaction) {
+            $pdo->beginTransaction();
+        }
 
         try {
-            $reservationStmt = $pdo->prepare('SELECT partysize FROM TABLE_RESERVATION WHERE id = :id');
+            $reservationStmt = $pdo->prepare('SELECT partysize, event_id, reserved_date FROM TABLE_RESERVATION WHERE id = :id');
             $reservationStmt->execute(['id' => $reservationId]);
             $reservation = $reservationStmt->fetch(PDO::FETCH_ASSOC);
             if (!$reservation) {
@@ -177,16 +223,22 @@ final class ReservationService
             self::ensureTablesAreActive($tables);
             self::ensureTablesAdjacent($tables);
             self::ensureCapacitySufficient($tables, (int)$reservation['partysize']);
-            self::ensureTablesFree($pdo, $filtered, $reservationId);
+            self::ensureTablesFree(
+                $pdo,
+                $filtered,
+                $reservationId,
+                (int)$reservation['event_id'],
+                $reservation['reserved_date']
+            );
 
             $primaryTableId = $tables[0]['id'];
 
             $update = $pdo->prepare(
                 'UPDATE TABLE_RESERVATION
-                 SET assigned_table_id = :table_id, status = "confirmed"
+                 SET assigned_table_id = :table_id, status = :status
                  WHERE id = :id'
             );
-            $update->execute(['table_id' => $primaryTableId, 'id' => $reservationId]);
+            $update->execute(['table_id' => $primaryTableId, 'status' => $nextStatus, 'id' => $reservationId]);
 
             $pdo->prepare('DELETE FROM TABLE_RESERVATION_TABLE WHERE reservation_id = :id')
                 ->execute(['id' => $reservationId]);
@@ -204,9 +256,13 @@ final class ReservationService
                 ]);
             }
 
-            $pdo->commit();
+            if ($startedTransaction) {
+                $pdo->commit();
+            }
         } catch (\Throwable $e) {
-            $pdo->rollBack();
+            if ($startedTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             throw $e;
         }
 
@@ -224,12 +280,15 @@ final class ReservationService
                     r.status,
                     r.note,
                     r.assigned_table_id,
+                    r.ticket_order_id,
+                    r.is_placeholder,
+                    r.hold_expires_at,
                     r.created_at,
                     u.fname,
                     u.lname,
                     e.title AS event_title,
                     t.table_name,
-                    t.capacity AS table_capacity
+                       t.capacity AS table_capacity
              FROM TABLE_RESERVATION r
              INNER JOIN USERS u ON u.id = r.user_id
              INNER JOIN EVENTS e ON e.id = r.event_id
@@ -271,6 +330,9 @@ final class ReservationService
                 ? $tablesCapacity
                 : ($row['table_capacity'] !== null ? (int)$row['table_capacity'] : null),
             'assigned_table_id' => $row['assigned_table_id'] ? (int)$row['assigned_table_id'] : null,
+            'ticket_order_id' => isset($row['ticket_order_id']) && $row['ticket_order_id'] !== null ? (int)$row['ticket_order_id'] : null,
+            'isPlaceholder' => isset($row['is_placeholder']) ? (int)$row['is_placeholder'] === 1 : false,
+            'holdExpiresAt' => !empty($row['hold_expires_at']) ? date('c', strtotime($row['hold_expires_at'])) : null,
             'createdAt' => date('c', strtotime($row['created_at'])),
         ];
     }
@@ -395,11 +457,11 @@ final class ReservationService
         }
     }
 
-    private static function ensureTablesFree(PDO $pdo, array $tableIds, int $reservationId): void
+    private static function ensureTablesFree(PDO $pdo, array $tableIds, int $reservationId, int $eventId, string $reservedDate): void
     {
         self::ensurePivotTable($pdo);
         $placeholders = implode(',', array_fill(0, count($tableIds), '?'));
-        $params = array_merge($tableIds, [$reservationId]);
+        $params = array_merge($tableIds, [$reservationId, $eventId]);
 
         $stmt = $pdo->prepare(
             'SELECT 1
@@ -408,6 +470,7 @@ final class ReservationService
              WHERE rt.table_id IN (' . $placeholders . ')
                AND r.status IN ("pending","confirmed","seated")
                AND r.id <> ?
+               AND r.event_id = ?
              LIMIT 1'
         );
         $stmt->execute($params);
@@ -518,6 +581,110 @@ final class ReservationService
             'status' => $reservation['status'],
         ];
     }
+
+    public static function reservationsForEvent(int $userId, int $eventId): array
+    {
+        return self::list([
+            'user_id' => $userId,
+            'event_id' => $eventId,
+        ]);
+    }
+
+    public static function findByTicketOrder(int $orderId): ?array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT id FROM TABLE_RESERVATION WHERE ticket_order_id = :order_id LIMIT 1'
+        );
+        $stmt->execute(['order_id' => $orderId]);
+        $reservationId = $stmt->fetchColumn();
+        if (!$reservationId) {
+            return null;
+        }
+
+        return self::find((int)$reservationId);
+    }
+
+    public static function markSeatedByOrder(int $orderId, ?array $actor = null): void
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT id FROM TABLE_RESERVATION WHERE ticket_order_id = :order_id LIMIT 1'
+        );
+        $stmt->execute(['order_id' => $orderId]);
+        $reservationId = $stmt->fetchColumn();
+        if (!$reservationId) {
+            return;
+        }
+
+        self::updateStatus((int)$reservationId, 'seated', $actor);
+    }
+
+    public static function touchHoldExpiry(int $reservationId, ?string $expiresAt, bool $isPlaceholder): void
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE TABLE_RESERVATION
+             SET hold_expires_at = :expires_at,
+                 is_placeholder = :placeholder
+             WHERE id = :id'
+        );
+        $stmt->execute([
+            'expires_at' => $expiresAt,
+            'placeholder' => $isPlaceholder ? 1 : 0,
+            'id' => $reservationId,
+        ]);
+    }
+
+    public static function releaseTables(int $reservationId): void
+    {
+        self::releaseTablesInternal(Database::connection(), $reservationId);
+    }
+
+    public static function expireHolds(): int
+    {
+        $pdo = Database::connection();
+        $stmt = $pdo->query(
+            'SELECT r.id, r.ticket_order_id
+             FROM TABLE_RESERVATION r
+             LEFT JOIN TICKETS_ORDER o ON o.id = r.ticket_order_id
+             WHERE r.hold_expires_at IS NOT NULL
+               AND r.hold_expires_at < NOW()
+               AND r.status IN ("pending","confirmed")
+               AND (o.id IS NULL OR o.status = "pending")'
+        );
+
+        $expired = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!$expired) {
+            return 0;
+        }
+
+        $cancelStmt = $pdo->prepare('UPDATE TICKETS_ORDER SET status = "cancelled" WHERE id = :id');
+        foreach ($expired as $row) {
+            $reservationId = (int)$row['id'];
+            self::updateStatus($reservationId, 'canceled');
+            if (!empty($row['ticket_order_id'])) {
+                $cancelStmt->execute(['id' => (int)$row['ticket_order_id']]);
+            }
+        }
+
+        return count($expired);
+    }
+
+    public static function cancelByOrder(int $orderId): void
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT id FROM TABLE_RESERVATION WHERE ticket_order_id = :order_id LIMIT 1'
+        );
+        $stmt->execute(['order_id' => $orderId]);
+        $reservationId = $stmt->fetchColumn();
+        if (!$reservationId) {
+            return;
+        }
+
+        self::updateStatus((int)$reservationId, 'canceled');
+
+        Database::connection()->prepare(
+            'UPDATE TABLE_RESERVATION SET ticket_order_id = NULL WHERE id = :id'
+        )->execute(['id' => $reservationId]);
+    }
     private static function ensurePivotTable(PDO $pdo): void
     {
         static $isEnsured = false;
@@ -540,5 +707,25 @@ final class ReservationService
         );
 
         $isEnsured = true;
+    }
+
+    private static function clearHoldMeta(PDO $pdo, int $reservationId): void
+    {
+        $stmt = $pdo->prepare(
+            'UPDATE TABLE_RESERVATION
+             SET hold_expires_at = NULL,
+                 is_placeholder = 0
+             WHERE id = :id'
+        );
+        $stmt->execute(['id' => $reservationId]);
+    }
+
+    private static function releaseTablesInternal(PDO $pdo, int $reservationId): void
+    {
+        $pdo->prepare('DELETE FROM TABLE_RESERVATION_TABLE WHERE reservation_id = :id')
+            ->execute(['id' => $reservationId]);
+
+        $pdo->prepare('UPDATE TABLE_RESERVATION SET assigned_table_id = NULL WHERE id = :id')
+            ->execute(['id' => $reservationId]);
     }
 }

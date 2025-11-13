@@ -40,6 +40,7 @@ $router->delete('/api/profile', [$profile, 'destroy'], ['auth']);
 
 $router->get('/api/events', [$events, 'index']);
 $router->get('/api/events/{id}', [$events, 'show']);
+$router->get('/api/events/{id}/available-tables', [$events, 'availableTables'], ['auth']);
 $router->post('/api/events', [$events, 'store'], ['auth']);
 $router->put('/api/events/{id}', [$events, 'update'], ['auth']);
 $router->patch('/api/events/{id}/status', [$events, 'updateStatus'], ['auth']);

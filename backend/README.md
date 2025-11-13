@@ -30,6 +30,16 @@ php -S localhost:8000 public/index.php
 
 The script auto-migrates required columns/tables, seeds default roles, an admin user (`admin@hangout.local` / `1234`), sample events, menu items, and venue tables the first time it starts.
 
+### Expire stale table holds
+
+Ticket purchases now create temporary holds on tables. To release holds that pass their 30-minute grace period, run:
+
+```
+php backend/bin/expire-reservation-holds.php
+```
+
+Schedule this command (e.g., cron) to keep your seating chart accurate.
+
 ## Key Endpoints
 
 | Method | Path | Description |
@@ -63,4 +73,3 @@ Admin/staff-only endpoints require `Authorization: Bearer <token>` where the tok
 - Additional middleware can be registered in `App\Support\Router`.
 - Services under `backend/src/Services` encapsulate SQL access; controllers stay thin.
 - Add new routes inside `backend/routes/api.php`.
-

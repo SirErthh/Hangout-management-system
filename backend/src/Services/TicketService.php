@@ -9,6 +9,7 @@ use RuntimeException;
 
 final class TicketService
 {
+    private const HOLD_MINUTES = 30;
     public static function createOrder(array $data): array
     {
         $pdo = Database::connection();
@@ -20,43 +21,65 @@ final class TicketService
             throw new RuntimeException('Event not found', 404);
         }
 
-        $orderCode = strtoupper($event['ticketCodePrefix']) . '-' . strtoupper(bin2hex(random_bytes(3)));
-        $total = $data['quantity'] * $event['price'];
+        try {
+            $orderCode = strtoupper($event['ticketCodePrefix']) . '-' . strtoupper(bin2hex(random_bytes(3)));
+            $total = $data['quantity'] * $event['price'];
 
-        $orderStmt = $pdo->prepare(
-            'INSERT INTO TICKETS_ORDER (user_id, order_code, status, total_baht, payment_method, created_at, paid_by_user_id)
-             VALUES (:user_id, :order_code, :status, :total_baht, :payment_method, NOW(), :paid_by_user_id)'
-        );
-        $orderStmt->execute([
-            'user_id' => $data['user_id'],
-            'order_code' => $orderCode,
-            'status' => 'pending',
-            'total_baht' => $total,
-            'payment_method' => 'cash',
-            'paid_by_user_id' => $data['user_id'],
-        ]);
-        $orderId = (int)$pdo->lastInsertId();
+            $orderStmt = $pdo->prepare(
+                'INSERT INTO TICKETS_ORDER (user_id, order_code, status, total_baht, payment_method, created_at, paid_by_user_id)
+                 VALUES (:user_id, :order_code, :status, :total_baht, :payment_method, NOW(), :paid_by_user_id)'
+            );
+            $orderStmt->execute([
+                'user_id' => $data['user_id'],
+                'order_code' => $orderCode,
+                'status' => 'pending',
+                'total_baht' => $total,
+                'payment_method' => 'cash',
+                'paid_by_user_id' => $data['user_id'],
+            ]);
+            $orderId = (int)$pdo->lastInsertId();
 
-        $itemStmt = $pdo->prepare(
-            'INSERT INTO TICKET_ORDER_ITEM (order_id, event_id, quantity, unit_price_baht, line_total_baht)
-             VALUES (:order_id, :event_id, :quantity, :unit_price_baht, :line_total_baht)'
-        );
-        $itemStmt->execute([
-            'order_id' => $orderId,
-            'event_id' => $data['event_id'],
-            'quantity' => $data['quantity'],
-            'unit_price_baht' => $event['price'],
-            'line_total_baht' => $total,
-        ]);
-        $orderItemId = (int)$pdo->lastInsertId();
+            $itemStmt = $pdo->prepare(
+                'INSERT INTO TICKET_ORDER_ITEM (order_id, event_id, quantity, unit_price_baht, line_total_baht)
+                 VALUES (:order_id, :event_id, :quantity, :unit_price_baht, :line_total_baht)'
+            );
+            $itemStmt->execute([
+                'order_id' => $orderId,
+                'event_id' => $data['event_id'],
+                'quantity' => $data['quantity'],
+                'unit_price_baht' => $event['price'],
+                'line_total_baht' => $total,
+            ]);
+            $orderItemId = (int)$pdo->lastInsertId();
 
-        $codes = self::generateCodes(
-            $event['ticketCodePrefix'],
-            $orderItemId,
-            $data['quantity']
-        );
+            $codes = self::generateCodes(
+                $event['ticketCodePrefix'],
+                $orderItemId,
+                $data['quantity']
+            );
 
-        $pdo->commit();
+            self::processReservationSelection(
+                $pdo,
+                [
+                    'reservation' => $data['reservation'] ?? null,
+                    'user_id' => $data['user_id'],
+                    'event_id' => $data['event_id'],
+                    'quantity' => $data['quantity'],
+                    'order_id' => $orderId,
+                    'event_starts_at' => $data['event_starts_at'] ?? ($event['starts_at'] ?? null),
+                ],
+                $event
+            );
+
+            if ($pdo->inTransaction()) {
+                $pdo->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
 
         $order = self::find($orderId);
         if ($order) {
@@ -154,6 +177,10 @@ final class TicketService
             'status_reset' => $status,
         ]);
 
+        if ($status === 'cancelled') {
+            ReservationService::cancelByOrder($orderId);
+        }
+
         return self::find($orderId) ?? [];
     }
 
@@ -207,6 +234,9 @@ final class TicketService
             }
             throw $e;
         }
+
+        self::updateStatus($orderId, 'confirmed');
+        ReservationService::markSeatedByOrder($orderId, $actor);
 
         return self::find($orderId) ?? [];
     }
@@ -266,6 +296,7 @@ final class TicketService
         }
 
         self::updateStatus($orderId, 'confirmed');
+        ReservationService::markSeatedByOrder($orderId, $actor);
 
         return self::find($orderId) ?? [];
     }
@@ -408,6 +439,76 @@ final class TicketService
         return $codes;
     }
 
+    private static function processReservationSelection(PDO $pdo, array $context, array $event): void
+    {
+        $payload = $context['reservation'] ?? null;
+        if (!is_array($payload)) {
+            throw new RuntimeException('Table selection is required before checkout.', 422);
+        }
+
+        $holdExpiresAt = self::calculateHoldExpiry($event);
+
+        self::createReservationWithTables($pdo, $payload, $context, $holdExpiresAt, $event);
+    }
+
+    private static function createReservationWithTables(
+        PDO $pdo,
+        array $payload,
+        array $context,
+        string $holdExpiresAt,
+        array $event
+    ): void {
+        $tableIds = array_values(array_unique(array_map('intval', $payload['table_ids'] ?? $payload['tableIds'] ?? [])));
+        $tableIds = array_filter($tableIds, static fn(int $id) => $id > 0);
+        if (empty($tableIds)) {
+            throw new RuntimeException('Please select at least one table.', 422);
+        }
+
+        $partySize = max((int)($payload['party_size'] ?? $payload['partySize'] ?? 0), (int)$context['quantity']);
+        $reservation = ReservationService::create([
+            'user_id' => $context['user_id'],
+            'event_id' => $context['event_id'],
+            'party_size' => $partySize,
+            'reserved_date' => self::reservationDateForEvent($event),
+            'note' => $payload['note'] ?? null,
+            'ticket_order_id' => $context['order_id'],
+            'hold_expires_at' => $holdExpiresAt,
+        ]);
+
+        if (empty($reservation['id'])) {
+            throw new RuntimeException('Unable to create reservation for this order', 500);
+        }
+
+        ReservationService::assignTables((int)$reservation['id'], $tableIds, ['id' => $context['user_id']], 'pending');
+        ReservationService::touchHoldExpiry((int)$reservation['id'], $holdExpiresAt, false);
+    }
+
+    private static function reservationDateForEvent(array $event): string
+    {
+        $startsAt = $event['starts_at'] ?? null;
+        if ($startsAt) {
+            $timestamp = strtotime((string)$startsAt);
+            if ($timestamp !== false) {
+                return date('Y-m-d H:i:s', $timestamp);
+            }
+        }
+
+        return date('Y-m-d H:i:s');
+    }
+
+    private static function calculateHoldExpiry(array $event): string
+    {
+        $startsAt = $event['starts_at'] ?? null;
+        if ($startsAt) {
+            $timestamp = strtotime((string)$startsAt);
+            if ($timestamp !== false) {
+                return date('Y-m-d H:i:s', $timestamp + self::HOLD_MINUTES * 60);
+            }
+        }
+
+        return date('Y-m-d H:i:s', time() + self::HOLD_MINUTES * 60);
+    }
+
     private static function lastCodeNumber(string $prefix): int
     {
         $stmt = Database::connection()->prepare(
@@ -439,6 +540,8 @@ final class TicketService
             static fn($value) => $value !== null
         ));
 
+        $reservation = ReservationService::findByTicketOrder((int)$row['id']);
+
         return [
             'id' => (int)$row['id'],
             'user_id' => (int)$row['user_id'],
@@ -453,6 +556,7 @@ final class TicketService
             'createdAt' => date('c', strtotime($row['created_at'])),
             'tickets' => array_map(static fn(array $code) => $code['code'], $codes),
             'confirmedTickets' => $confirmed,
+            'reservation' => $reservation,
         ];
     }
 }

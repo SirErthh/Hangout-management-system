@@ -28,6 +28,10 @@ final class ReservationController
             $filters['status'] = $status;
         }
 
+        if ($eventId = (int)$request->query('event_id')) {
+            $filters['event_id'] = $eventId;
+        }
+
         return ['reservations' => ReservationService::list($filters)];
     }
 

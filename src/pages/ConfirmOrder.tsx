@@ -1,21 +1,30 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Ticket, Calendar, Clock } from "lucide-react";
+import { Ticket, Calendar, Clock, AlertTriangle, Loader2 } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const ConfirmOrder = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [orderDetails, setOrderDetails] = useState<any>(null);
+  const [seatingSelection, setSeatingSelection] = useState<any>(null);
+  const [eventDetails, setEventDetails] = useState<any>(location.state?.event ?? null);
 
   useEffect(() => {
-    if (location.state?.order) {
+    if (location.state?.order && location.state?.seating) {
       setOrderDetails(location.state.order);
+      setSeatingSelection(location.state.seating);
+      if (location.state?.event) {
+        setEventDetails(location.state.event);
+      }
+    } else if (location.state?.order && !location.state?.seating) {
+      navigate(`/events/${location.state.order.eventId}/seating`, { replace: true, state: { order: location.state.order, event: location.state?.event } });
     } else {
       navigate('/events');
     }
@@ -32,6 +41,7 @@ const ConfirmOrder = () => {
       const { order } = await api.orderTickets(orderDetails.eventId, {
         quantity: orderDetails.quantity,
         price: orderDetails.price,
+        reservation: seatingSelection,
       });
 
       toast.success("Order Confirmed!", {
@@ -41,10 +51,49 @@ const ConfirmOrder = () => {
       navigate('/my-orders');
     } catch (error) {
       handleApiError(error, "Failed to confirm order");
+      const maybeMessage =
+        (error as any)?.payload?.message ||
+        (error as any)?.message ||
+        "";
+      if (
+        typeof maybeMessage === "string" &&
+        maybeMessage.toLowerCase().includes("table")
+      ) {
+        navigate(`/events/${orderDetails.eventId}/seating`, {
+          replace: true,
+          state: { order: orderDetails, event: eventDetails },
+        });
+      }
     }
   };
 
-  if (!orderDetails) return null;
+  const arrivalReminder = useMemo(() => {
+    if (!orderDetails) return null;
+    const startsAt = orderDetails.startsAt ?? orderDetails.starts_at;
+    if (!startsAt) return null;
+    const eventDate = new Date(startsAt);
+    if (Number.isNaN(eventDate.getTime())) return null;
+    const reminderTime = new Date(eventDate.getTime() - 2 * 60 * 60 * 1000);
+    return reminderTime.toLocaleString();
+  }, [orderDetails]);
+
+  const seatingSummary = useMemo(() => {
+    if (!seatingSelection) return "Seating information unavailable.";
+    const labels = seatingSelection.table_labels;
+    if (Array.isArray(labels) && labels.length) {
+      return `Tables: ${labels.join(", ")}`;
+    }
+    return "Table reservation recorded.";
+  }, [seatingSelection]);
+
+  if (!orderDetails || !seatingSelection) {
+    return (
+      <div className="p-6 flex items-center justify-center text-muted-foreground gap-2">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        Preparing your order…
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 space-y-6 animate-slide-up max-w-2xl mx-auto">
@@ -52,6 +101,23 @@ const ConfirmOrder = () => {
         <h1 className="text-2xl sm:text-3xl font-bold mb-2">Confirm Your Order</h1>
         <p className="text-muted-foreground text-sm sm:text-base">Review your event ticket order</p>
       </div>
+
+      {arrivalReminder && (
+        <Alert className="glass-effect border-primary/30">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="text-sm">
+            Please arrive by <strong>{arrivalReminder}</strong> (2 hours before the show) so we can
+            finalize payment and seat your party.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Alert className="glass-effect border-yellow-500/40 bg-yellow-500/10">
+        <AlertDescription className="text-sm">
+          Selected tables are held for 30 minutes after you confirm. If you do not check in within
+          that window, they may be released to other guests.
+        </AlertDescription>
+      </Alert>
 
       <Card className="glass-effect border-2">
         <CardHeader>
@@ -99,6 +165,14 @@ const ConfirmOrder = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/40 p-4 space-y-2">
+            <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Seating</p>
+            <p className="text-base font-semibold">{seatingSummary}</p>
+            {seatingSelection?.note && (
+              <p className="text-sm text-muted-foreground">Note: {seatingSelection.note}</p>
+            )}
           </div>
 
           <div className="flex gap-3">

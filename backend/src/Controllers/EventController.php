@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Services\EventService;
+use App\Services\TableService;
 use App\Services\TicketService;
 use App\Support\Request;
 use RuntimeException;
@@ -79,6 +80,10 @@ final class EventController
     public function orderTickets(Request $request): array
     {
         $eventId = (int)$request->param('id');
+        $event = EventService::find($eventId);
+        if (!$event) {
+            throw new RuntimeException('Event not found', 404);
+        }
         $payload = $request->all();
         $user = $request->user();
         if (!$user) {
@@ -90,14 +95,37 @@ final class EventController
             throw new RuntimeException('Quantity must be greater than zero', 422);
         }
 
+        $reservationPayload = $payload['reservation'] ?? null;
+        if (!is_array($reservationPayload)) {
+            throw new RuntimeException('Please select a seating option before confirming your order.', 422);
+        }
+
         $ticketOrder = TicketService::createOrder([
             'user_id' => $user['id'],
             'event_id' => $eventId,
             'quantity' => $quantity,
             'price' => (float)($payload['price'] ?? 0),
+            'reservation' => $reservationPayload,
+            'event_starts_at' => $event['starts_at'] ?? null,
         ]);
 
         return ['order' => $ticketOrder];
+    }
+
+    public function availableTables(Request $request): array
+    {
+        $user = $request->user();
+        if (!$user) {
+            throw new RuntimeException('Authentication required', 401);
+        }
+
+        $eventId = (int)$request->param('id');
+        if ($eventId <= 0 || !EventService::find($eventId)) {
+            throw new RuntimeException('Event not found', 404);
+        }
+
+        $tables = TableService::availableForEvent($eventId);
+        return ['tables' => $tables];
     }
 
     private function validate(Request $request): array
