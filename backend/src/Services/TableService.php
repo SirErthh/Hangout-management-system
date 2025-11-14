@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use DateTimeImmutable;
+use Exception;
 use PDO;
 
 final class TableService
 {
-    public static function all(): array
+    public static function all(?string $date = null): array
     {
         $pdo = Database::connection();
         self::ensurePivotTable($pdo);
+        [$startOfDay, $endOfDay] = self::resolveWindow($date);
+
         $stmt = $pdo->query(
             'SELECT id, table_name, capacity, is_active, updated_at
              FROM VENUETABLE
@@ -30,17 +34,23 @@ final class TableService
                  FROM TABLE_RESERVATION r
                  WHERE r.assigned_table_id = :table_id
                    AND r.status IN ("pending","confirmed","seated")
+                   AND r.reserved_date BETWEEN :start_day AND :end_day
                  UNION
                  SELECT r2.id
                  FROM TABLE_RESERVATION_TABLE rt
                  INNER JOIN TABLE_RESERVATION r2 ON r2.id = rt.reservation_id
                  WHERE rt.table_id = :table_id
                    AND r2.status IN ("pending","confirmed","seated")
+                   AND r2.reserved_date BETWEEN :start_day AND :end_day
              ) AS active_reservations'
         );
 
-        return array_map(static function (array $row) use ($statusStmt): array {
-            $statusStmt->execute(['table_id' => $row['id']]);
+        return array_map(static function (array $row) use ($statusStmt, $startOfDay, $endOfDay): array {
+            $statusStmt->execute([
+                'table_id' => $row['id'],
+                'start_day' => $startOfDay,
+                'end_day' => $endOfDay,
+            ]);
             $isOccupied = ((int)$statusStmt->fetchColumn()) > 0;
             $state = (int)$row['is_active'] === 1 ? ($isOccupied ? 'occupied' : 'available') : 'inactive';
 
@@ -137,5 +147,24 @@ final class TableService
         }
 
         return $occupied;
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private static function resolveWindow(?string $date): array
+    {
+        try {
+            $target = $date !== null && $date !== ''
+                ? new DateTimeImmutable($date)
+                : new DateTimeImmutable('today');
+        } catch (Exception $e) {
+            $target = new DateTimeImmutable('today');
+        }
+
+        $start = $target->setTime(0, 0, 0)->format('Y-m-d H:i:s');
+        $end = $target->setTime(23, 59, 59)->format('Y-m-d H:i:s');
+
+        return [$start, $end];
     }
 }

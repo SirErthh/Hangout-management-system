@@ -111,7 +111,8 @@ final class ReservationController
     public function tables(Request $request): array
     {
         $this->ensureStaff($request);
-        return ['tables' => TableService::all()];
+        $date = $request->query('date');
+        return ['tables' => TableService::all($date)];
     }
 
     private function ensureStaff(Request $request): void
