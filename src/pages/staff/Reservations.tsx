@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Calendar, Users, CheckCircle, XCircle, LayoutGrid } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
 import { getFlatStatusBadgeClass, statusBadgeBase } from "@/lib/statusColors";
-import { usePagination } from "@/hooks/usePagination";
 import { PaginationControls } from "@/components/PaginationControls";
 
 type Reservation = {
@@ -32,37 +31,71 @@ type TableRow = {
   status: "available" | "occupied" | "inactive";
 };
 
+const PAGE_SIZE = 20;
+const DEFAULT_STATS = {
+  pending: 0,
+  confirmed: 0,
+  seated: 0,
+  no_show: 0,
+  canceled: 0,
+  guest_total: 0,
+};
+
+const VIEW_OPTIONS: { value: "active" | "completed" | "all"; label: string }[] = [
+  { value: "active", label: "Active" },
+  { value: "completed", label: "Completed" },
+  { value: "all", label: "All" },
+];
+
 const StaffReservations = () => {
   const navigate = useNavigate();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [tables, setTables] = useState<TableRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
-
-  const loadTables = async () => {
-    try {
-      const { tables: fetched } = await api.getTables();
-      setTables(fetched ?? []);
-    } catch (error) {
-      handleApiError(error, "Failed to load table status");
-    }
-  };
+  const [page, setPage] = useState(1);
+  const [view, setView] = useState<"active" | "completed" | "all">("active");
+  const [meta, setMeta] = useState({
+    total: 0,
+    per_page: PAGE_SIZE,
+    page: 1,
+    last_page: 1,
+  });
+  const [stats, setStats] = useState(DEFAULT_STATS);
 
   const fetchReservations = useCallback(
-    async (signal?: AbortSignal) => {
+    async (pageToLoad: number, signal?: AbortSignal) => {
       setLoading(true);
       try {
         const [reservationsRes, tablesRes] = await Promise.all([
-          api.getReservations({ mine: false, signal }),
+          api.getReservations({ mine: false, page: pageToLoad, perPage: PAGE_SIZE, view, signal }),
           api.getTables(signal),
         ]);
         if (!signal?.aborted) {
           setReservations(reservationsRes.reservations ?? []);
           setTables(tablesRes.tables ?? []);
+          setMeta(
+            reservationsRes.meta ?? {
+              total: reservationsRes.reservations?.length ?? 0,
+              per_page: PAGE_SIZE,
+              page: pageToLoad,
+              last_page: 1,
+            },
+          );
+          setStats({
+            pending: reservationsRes.stats?.pending ?? 0,
+            confirmed: reservationsRes.stats?.confirmed ?? 0,
+            seated: reservationsRes.stats?.seated ?? 0,
+            no_show: reservationsRes.stats?.no_show ?? 0,
+            canceled: reservationsRes.stats?.canceled ?? 0,
+            guest_total: reservationsRes.stats?.guest_total ?? 0,
+          });
         }
       } catch (error) {
         if (!signal?.aborted) {
           handleApiError(error, "Failed to load reservations");
+          setReservations([]);
+          setStats(DEFAULT_STATS);
         }
       } finally {
         if (!signal?.aborted) {
@@ -70,22 +103,22 @@ const StaffReservations = () => {
         }
       }
     },
-    [],
+    [view],
   );
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchReservations(controller.signal);
+    fetchReservations(page, controller.signal);
     return () => controller.abort();
-  }, [fetchReservations]);
+  }, [fetchReservations, page]);
 
   useEffect(() => {
     const handler = () => {
-      fetchReservations();
+      fetchReservations(page);
     };
     window.addEventListener("day-closure-updated", handler);
     return () => window.removeEventListener("day-closure-updated", handler);
-  }, [fetchReservations]);
+  }, [fetchReservations, page]);
 
   const updateReservation = (updated: Reservation) => {
     setReservations((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
@@ -97,7 +130,7 @@ const StaffReservations = () => {
       const { reservation } = await api.updateReservationStatus(reservationId, status);
       updateReservation(reservation);
       toast.success(`Reservation updated to ${status}`);
-      await fetchReservations();
+      await fetchReservations(page);
     } catch (error) {
       handleApiError(error, "Failed to update reservation status");
     } finally {
@@ -111,70 +144,86 @@ const StaffReservations = () => {
 
   const summary = useMemo(() => {
     return {
-      pending: reservations.filter((r) => r.status === "pending").length,
-      confirmed: reservations.filter((r) => r.status === "confirmed").length,
-      totalGuests: reservations.reduce((sum, r) => sum + r.partySize, 0),
+      pending: stats.pending ?? 0,
+      confirmed: stats.confirmed ?? 0,
+      totalGuests: stats.guest_total ?? 0,
     };
-  }, [reservations]);
+  }, [stats]);
 
-  const { page, setPage, totalPages, pageItems: pagedReservations, startItem, endItem, totalItems } = usePagination(
-    reservations,
-  );
+  const perPage = meta.per_page ?? PAGE_SIZE;
+  const totalReservations = meta.total ?? reservations.length;
+  const totalPages = Math.max(1, meta.last_page ?? 1);
+  const startItem = totalReservations === 0 ? 0 : (page - 1) * perPage + 1;
+  const endItem = totalReservations === 0 ? 0 : Math.min(page * perPage, totalReservations);
 
   return (
     <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold mb-2">Reservations</h1>
           <p className="text-muted-foreground text-sm sm:text-base">Manage table bookings</p>
         </div>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="gap-2 w-full sm:w-auto">
-              <LayoutGrid className="h-4 w-4" />
-              Table Status
+        <div className="flex flex-wrap items-center gap-2">
+          {VIEW_OPTIONS.map((option) => (
+            <Button
+              key={option.value}
+              variant={view === option.value ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setView(option.value);
+                setPage(1);
+              }}
+              disabled={loading && view === option.value}
+            >
+              {option.label}
             </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Table Status Overview</DialogTitle>
-            </DialogHeader>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4">
-              {tables.map((table) => (
-                <Card
-                  key={table.id}
-                  className={`glass-effect border-2 ${
-                    table.status === "occupied"
-                      ? "border-red-500/50"
-                      : table.status === "inactive"
-                      ? "border-yellow-500/50"
-                      : "border-green-500/50"
-                  }`}
-                >
-                  <CardHeader className="p-4 text-center">
-                    <CardTitle className="text-2xl">{table.number}</CardTitle>
-                    <CardDescription className="text-xs">
-                      {table.capacity} seats
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-2">
-                    <div
-                      className={`text-center py-1 rounded text-xs font-semibold ${
-                        table.status === "available"
-                          ? "bg-green-500/20 text-green-500"
-                          : table.status === "inactive"
-                          ? "bg-yellow-500/20 text-yellow-600"
-                          : "bg-red-500/20 text-red-500"
-                      }`}
-                    >
-                      {table.status}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
+          ))}
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2 w-full sm:w-auto">
+                <LayoutGrid className="h-4 w-4" />
+                Table Status
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Table Status Overview</DialogTitle>
+              </DialogHeader>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4">
+                {tables.map((table) => (
+                  <Card
+                    key={table.id}
+                    className={`glass-effect border-2 ${
+                      table.status === "occupied"
+                        ? "border-red-500/50"
+                        : table.status === "inactive"
+                        ? "border-yellow-500/50"
+                        : "border-green-500/50"
+                    }`}
+                  >
+                    <CardHeader className="p-4 text-center">
+                      <CardTitle className="text-2xl">{table.number}</CardTitle>
+                      <CardDescription className="text-xs">{table.capacity} seats</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-2">
+                      <div
+                        className={`text-center py-1 rounded text-xs font-semibold ${
+                          table.status === "available"
+                            ? "bg-green-500/20 text-green-500"
+                            : table.status === "inactive"
+                            ? "bg-yellow-500/20 text-yellow-600"
+                            : "bg-red-500/20 text-red-500"
+                        }`}
+                      >
+                        {table.status}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
@@ -199,7 +248,7 @@ const StaffReservations = () => {
             <CardDescription>Total Reservations</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{reservations.length}</p>
+            <p className="text-3xl font-bold">{totalReservations}</p>
           </CardContent>
         </Card>
         <Card className="glass-effect">
@@ -227,7 +276,7 @@ const StaffReservations = () => {
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            {pagedReservations.map((reservation) => {
+            {reservations.map((reservation) => {
             const reservedDate = reservation.reservedDate
               ? new Date(reservation.reservedDate)
               : null;
@@ -294,7 +343,7 @@ const StaffReservations = () => {
                     </div>
                   </div>
 
-                    <div className="flex flex-wrap gap-2 mt-auto">
+                  <div className="flex flex-wrap gap-2 mt-auto">
                     {canMarkConfirmed && (
                       <Button
                         size="sm"
@@ -348,7 +397,7 @@ const StaffReservations = () => {
             <p className="text-sm text-muted-foreground">
               Showing <span className="font-medium">{startItem}</span>-
               <span className="font-medium">{endItem}</span> of{" "}
-              <span className="font-medium">{totalItems}</span> reservations
+              <span className="font-medium">{totalReservations}</span> reservations
             </p>
             <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
           </div>

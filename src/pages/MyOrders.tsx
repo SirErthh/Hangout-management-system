@@ -71,8 +71,8 @@ const MyOrders = () => {
       setLoading(true);
       try {
         const [ticketRes, reservationRes, fnbRes] = await Promise.all([
-          api.getTicketOrders(true, controller.signal),
-          api.getReservations({ mine: true, signal: controller.signal }),
+          api.getTicketOrders({ mine: true, perPage: 100, view: "all", signal: controller.signal }),
+          api.getReservations({ mine: true, perPage: 100, view: "all", signal: controller.signal }),
           api.getFnbOrders({ mine: true, signal: controller.signal }),
         ]);
 

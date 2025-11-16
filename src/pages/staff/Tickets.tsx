@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,6 @@ import { Ticket, CheckCircle, XCircle, Search, Eye, Loader2 } from "lucide-react
 import { api, handleApiError } from "@/lib/api";
 import { getFlatStatusBadgeClass, statusBadgeBase } from "@/lib/statusColors";
 import { Textarea } from "@/components/ui/textarea";
-import { usePagination } from "@/hooks/usePagination";
 import { PaginationControls } from "@/components/PaginationControls";
 
 type TicketOrder = {
@@ -31,41 +30,98 @@ type TicketOrder = {
   };
 };
 
+const PAGE_SIZE = 20;
+const DEFAULT_STATS: Record<string, number> = {
+  pending: 0,
+  confirmed: 0,
+  cancelled: 0,
+  revenue: 0,
+};
+
+const VIEW_OPTIONS: { value: "active" | "completed" | "all"; label: string }[] = [
+  { value: "active", label: "Active" },
+  { value: "completed", label: "Completed" },
+  { value: "all", label: "All" },
+];
+
 const StaffTickets = () => {
   const [orders, setOrders] = useState<TicketOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [ticketNoteDialog, setTicketNoteDialog] = useState<{ orderId: number; code: string } | null>(null);
   const [ticketNote, setTicketNote] = useState("");
   const [confirmingTicketNote, setConfirmingTicketNote] = useState(false);
   const [confirmAllDialog, setConfirmAllDialog] = useState<number | null>(null);
   const [confirmAllNote, setConfirmAllNote] = useState("");
   const [confirmingAllNotes, setConfirmingAllNotes] = useState(false);
+  const [page, setPage] = useState(1);
+  const [view, setView] = useState<"active" | "completed" | "all">("active");
+  const [meta, setMeta] = useState({
+    total: 0,
+    per_page: PAGE_SIZE,
+    page: 1,
+    last_page: 1,
+  });
+  const [stats, setStats] = useState(DEFAULT_STATS);
 
   useEffect(() => {
-    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+      setPage(1);
+    }, 400);
+    return () => window.clearTimeout(timeout);
+  }, [searchQuery]);
 
-    const loadOrders = async () => {
+  const loadOrders = useCallback(
+    async (pageToLoad: number, signal?: AbortSignal) => {
       setLoading(true);
       try {
-        const { orders: fetched } = await api.getTicketOrders(false, controller.signal);
-        if (!controller.signal.aborted) {
-          setOrders((fetched ?? []) as TicketOrder[]);
+        const payload = await api.getTicketOrders({
+          mine: false,
+          page: pageToLoad,
+          perPage: PAGE_SIZE,
+          view,
+          query: debouncedSearch || undefined,
+          signal,
+        });
+        if (!signal?.aborted) {
+          setOrders((payload.orders ?? []) as TicketOrder[]);
+          setMeta(
+            payload.meta ?? {
+              total: payload.orders?.length ?? 0,
+              per_page: PAGE_SIZE,
+              page: pageToLoad,
+              last_page: 1,
+            },
+          );
+          setStats({
+            pending: payload.stats?.pending ?? 0,
+            confirmed: payload.stats?.confirmed ?? 0,
+            cancelled: payload.stats?.cancelled ?? 0,
+            revenue: payload.stats?.revenue ?? 0,
+          });
         }
       } catch (error) {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           handleApiError(error, "Failed to load ticket orders");
+          setOrders([]);
+          setStats(DEFAULT_STATS);
         }
       } finally {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           setLoading(false);
         }
       }
-    };
+    },
+    [view, debouncedSearch],
+  );
 
-    loadOrders();
+  useEffect(() => {
+    const controller = new AbortController();
+    loadOrders(page, controller.signal);
     return () => controller.abort();
-  }, []);
+  }, [loadOrders, page]);
 
   const replaceOrder = (updated: TicketOrder) => {
     setOrders((prev) => prev.map((order) => (order.id === updated.id ? updated : order)));
@@ -76,6 +132,7 @@ const StaffTickets = () => {
       const { order } = await api.updateTicketOrderStatus(orderId, newStatus);
       replaceOrder(order);
       toast.success(`Order ${newStatus}`);
+      await loadOrders(page);
     } catch (error) {
       handleApiError(error, "Failed to update order status");
     }
@@ -86,6 +143,7 @@ const StaffTickets = () => {
       const { order } = await api.confirmTicket(orderId, ticketCode, note);
       replaceOrder(order);
       toast.success(`Ticket ${ticketCode} confirmed`);
+      await loadOrders(page);
       return true;
     } catch (error) {
       handleApiError(error, "Failed to confirm ticket");
@@ -98,6 +156,7 @@ const StaffTickets = () => {
       const { order } = await api.confirmAllTickets(orderId, note);
       replaceOrder(order);
       toast.success("All tickets confirmed");
+      await loadOrders(page);
       return true;
     } catch (error) {
       handleApiError(error, "Failed to confirm all tickets");
@@ -149,46 +208,54 @@ const StaffTickets = () => {
     }
   };
 
-  const filteredOrders = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return orders;
-    return orders.filter((order) => {
-      const ticketsMatch = order.tickets?.some((code) => code.toLowerCase().includes(query));
-      const orderCodeMatch = order.order_code?.toLowerCase().includes(query);
-      const customerMatch = `${order.customer ?? ""}`.toLowerCase().includes(query);
-      const eventMatch = `${order.event ?? ""}`.toLowerCase().includes(query);
-      return ticketsMatch || orderCodeMatch || customerMatch || eventMatch;
-    });
-  }, [orders, searchQuery]);
-
   const summary = useMemo(() => {
-    const pending = orders.filter((o) => o.status === "pending").length;
-    const confirmed = orders.filter((o) => o.status === "confirmed").length;
-    const total = orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
-    return { pending, confirmed, total };
-  }, [orders]);
+    return {
+      pending: stats.pending ?? 0,
+      confirmed: stats.confirmed ?? 0,
+      revenue: stats.revenue ?? 0,
+    };
+  }, [stats]);
 
-  const { page, setPage, totalPages, pageItems: pagedOrders, startItem, endItem, totalItems } = usePagination(
-    filteredOrders,
-    { resetKey: `${searchQuery}|${filteredOrders.length}` },
-  );
+  const perPage = meta.per_page ?? PAGE_SIZE;
+  const totalOrders = meta.total ?? orders.length;
+  const totalPages = Math.max(1, meta.last_page ?? 1);
+  const startItem = totalOrders === 0 ? 0 : (page - 1) * perPage + 1;
+  const endItem = totalOrders === 0 ? 0 : Math.min(page * perPage, totalOrders);
 
   return (
     <>
       <div className="p-4 sm:p-6 space-y-6 animate-slide-up">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold mb-2">Ticket Orders</h1>
           <p className="text-muted-foreground text-sm sm:text-base">Manage and process ticket purchases</p>
         </div>
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search ticket, customer, or code..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search ticket, customer, or code..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="flex gap-2">
+            {VIEW_OPTIONS.map((option) => (
+              <Button
+                key={option.value}
+                variant={view === option.value ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setView(option.value);
+                  setPage(1);
+                }}
+                disabled={loading && view === option.value}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -214,7 +281,7 @@ const StaffTickets = () => {
             <CardDescription>Total Revenue</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">฿{summary.total.toLocaleString()}</p>
+            <p className="text-3xl font-bold">฿{Number(summary.revenue || 0).toLocaleString()}</p>
           </CardContent>
         </Card>
       </div>
@@ -224,7 +291,7 @@ const StaffTickets = () => {
           <Loader2 className="h-5 w-5 animate-spin" />
           Loading ticket orders…
         </div>
-      ) : filteredOrders.length === 0 ? (
+      ) : orders.length === 0 ? (
         <Card className="glass-effect border-2">
           <CardContent className="py-12 text-center text-muted-foreground">
             No ticket orders to display.
@@ -233,7 +300,7 @@ const StaffTickets = () => {
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            {pagedOrders.map((order) => {
+            {orders.map((order) => {
               const confirmedTickets = order.confirmedTickets ?? [];
               return (
               <Card key={order.id} className="glass-effect border-2 h-full flex flex-col">
@@ -364,7 +431,7 @@ const StaffTickets = () => {
             <p className="text-sm text-muted-foreground">
               Showing <span className="font-medium">{startItem}</span>-
               <span className="font-medium">{endItem}</span> of{" "}
-              <span className="font-medium">{totalItems}</span> orders
+              <span className="font-medium">{totalOrders}</span> orders
             </p>
             <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
           </div>

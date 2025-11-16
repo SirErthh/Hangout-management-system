@@ -186,11 +186,44 @@ export const api = {
       method: "DELETE",
       auth: true,
     }),
-  getTicketOrders: (mine = true, signal?: AbortSignal) =>
-    apiRequest<{ orders: any[] }>(`/api/ticket-orders${mine ? "?mine=1" : ""}`, {
+  getTicketOrders: (options: {
+    mine?: boolean;
+    status?: string;
+    page?: number;
+    perPage?: number;
+    view?: "active" | "completed" | "all";
+    query?: string;
+    signal?: AbortSignal;
+  } = {}) => {
+    const params = new URLSearchParams();
+    if (options.mine !== false) {
+      params.set("mine", "1");
+    }
+    if (options.status) {
+      params.set("status", options.status);
+    }
+    if (options.page && options.page > 1) {
+      params.set("page", String(options.page));
+    }
+    if (options.perPage) {
+      params.set("per_page", String(options.perPage));
+    }
+    if (options.view) {
+      params.set("view", options.view);
+    }
+    if (options.query) {
+      params.set("q", options.query);
+    }
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return apiRequest<{
+      orders: any[];
+      meta?: { total: number; page: number; per_page: number; last_page: number };
+      stats?: Record<string, number>;
+    }>(`/api/ticket-orders${query}`, {
       auth: true,
-      signal,
-    }),
+      signal: options.signal,
+    });
+  },
   updateTicketOrderStatus: (id: number, status: string) =>
     apiRequest<{ order: any }>(`/api/ticket-orders/${id}/status`, {
       method: "PATCH",
@@ -231,7 +264,15 @@ export const api = {
       body: payload,
       auth: true,
     }),
-  getReservations: (options?: { mine?: boolean; eventId?: number; status?: string; signal?: AbortSignal }) => {
+  getReservations: (options?: {
+    mine?: boolean;
+    eventId?: number;
+    status?: string;
+    page?: number;
+    perPage?: number;
+    view?: "active" | "completed" | "all";
+    signal?: AbortSignal;
+  }) => {
     const params = new URLSearchParams();
     if (options?.mine !== false) {
       params.set("mine", "1");
@@ -242,8 +283,21 @@ export const api = {
     if (options?.status) {
       params.set("status", options.status);
     }
+    if (options?.page && options.page > 1) {
+      params.set("page", String(options.page));
+    }
+    if (options?.perPage) {
+      params.set("per_page", String(options.perPage));
+    }
+    if (options?.view) {
+      params.set("view", options.view);
+    }
     const query = params.toString() ? `?${params.toString()}` : "";
-    return apiRequest<{ reservations: any[] }>(`/api/reservations${query}`, {
+    return apiRequest<{
+      reservations: any[];
+      meta?: { total: number; page: number; per_page: number; last_page: number };
+      stats?: Record<string, number>;
+    }>(`/api/reservations${query}`, {
       auth: true,
       signal: options?.signal,
     });
@@ -275,6 +329,7 @@ export const api = {
     status?: string;
     page?: number;
     perPage?: number;
+    view?: "active" | "completed" | "all";
     signal?: AbortSignal;
   } = {}) => {
     const params = new URLSearchParams();
@@ -289,6 +344,9 @@ export const api = {
     }
     if (options.perPage) {
       params.set("per_page", String(options.perPage));
+    }
+    if (options.view) {
+      params.set("view", options.view);
     }
     const query = params.toString();
     return apiRequest<{ orders: any[]; meta?: { total: number; page: number; per_page: number; last_page: number }; stats?: Record<string, number> }>(

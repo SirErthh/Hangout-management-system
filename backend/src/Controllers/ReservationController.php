@@ -15,7 +15,9 @@ final class ReservationController
     public function index(Request $request): array
     {
         $filters = [];
-        if ($request->query('mine')) {
+        $isMine = (bool)$request->query('mine');
+
+        if ($isMine) {
             $user = $request->user();
             if ($user) {
                 $filters['user_id'] = $user['id'];
@@ -32,7 +34,30 @@ final class ReservationController
             $filters['event_id'] = $eventId;
         }
 
-        return ['reservations' => ReservationService::list($filters)];
+        $view = (string)$request->query(
+            'view',
+            $isMine ? 'all' : 'active'
+        );
+
+        if (!in_array($view, ['active', 'completed', 'all'], true)) {
+            $view = $isMine ? 'all' : 'active';
+        }
+
+        $filters['view'] = $view;
+
+        $page = max(1, (int)$request->query('page', 1));
+        $perPage = max(1, min(200, (int)$request->query('per_page', 20)));
+        $daysBack = max(1, min(180, (int)$request->query('days_back', $isMine ? 90 : 14)));
+
+        $filters['days_back'] = $daysBack;
+
+        $result = ReservationService::list($filters, $page, $perPage);
+
+        return [
+            'reservations' => $result['reservations'],
+            'meta' => $result['meta'],
+            'stats' => $result['stats'],
+        ];
     }
 
     public function store(Request $request): array

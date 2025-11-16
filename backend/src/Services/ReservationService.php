@@ -10,6 +10,7 @@ use RuntimeException;
 final class ReservationService
 {
     private const ACTIVE_STATUSES = ['pending', 'confirmed', 'seated'];
+    private const COMPLETED_STATUSES = ['canceled', 'no_show'];
 
     public static function create(array $data): array
     {
@@ -59,9 +60,15 @@ final class ReservationService
         return self::find((int)$pdo->lastInsertId()) ?? [];
     }
 
-    public static function list(array $filters = []): array
+    public static function list(array $filters = [], int $page = 1, int $perPage = 25): array
     {
+        $perPage = max(1, min(200, $perPage));
+        $page = max(1, $page);
+        $offset = ($page - 1) * $perPage;
+
         $pdo = Database::connection();
+        [$whereClause, $params] = self::buildFilterClause($filters);
+
         $sql = 'SELECT r.id,
                        r.user_id,
                        r.event_id,
@@ -82,55 +89,37 @@ final class ReservationService
                 FROM TABLE_RESERVATION r
                 INNER JOIN USERS u ON u.id = r.user_id
                 INNER JOIN EVENTS e ON e.id = r.event_id
-                LEFT JOIN VENUETABLE t ON t.id = r.assigned_table_id';
-
-        $conditions = [];
-        $params = [];
-
-        if (isset($filters['user_id'])) {
-            $conditions[] = 'r.user_id = :user_id';
-            $params['user_id'] = $filters['user_id'];
-        }
-
-        if (isset($filters['status'])) {
-            $conditions[] = 'r.status = :status';
-            $params['status'] = $filters['status'];
-        }
-
-        if (isset($filters['event_id'])) {
-            $conditions[] = 'r.event_id = :event_id';
-            $params['event_id'] = (int)$filters['event_id'];
-        }
-
-        if (!empty($filters['status_in']) && is_array($filters['status_in'])) {
-            $placeholders = [];
-            foreach (array_values($filters['status_in']) as $index => $status) {
-                $key = 'status_in_' . $index;
-                $placeholders[] = ':' . $key;
-                $params[$key] = $status;
-            }
-            if ($placeholders) {
-                $conditions[] = 'r.status IN (' . implode(',', $placeholders) . ')';
-            }
-        }
-
-
-        if ($conditions) {
-            $sql .= ' WHERE ' . implode(' AND ', $conditions);
-        }
-
-        $sql .= ' ORDER BY r.reserved_date DESC';
+                LEFT JOIN VENUETABLE t ON t.id = r.assigned_table_id ';
+        $sql .= $whereClause;
+        $sql .= ' ORDER BY r.reserved_date DESC
+                  LIMIT :limit OFFSET :offset';
 
         $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
+        self::bindParams($stmt, $params);
+        $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        if (!$rows) {
-            return [];
+
+        if ($rows) {
+            $rows = self::attachTablesToRows($rows);
         }
 
-        $rows = self::attachTablesToRows($rows);
+        $reservations = array_map(static fn(array $row) => self::transform($row), $rows);
+        $total = self::countReservations($whereClause, $params);
+        $stats = self::statusTotals($whereClause, $params);
+        $lastPage = max(1, (int)ceil(max($total, 1) / $perPage));
 
-        return array_map(static fn(array $row) => self::transform($row), $rows);
+        return [
+            'reservations' => $reservations,
+            'meta' => [
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $perPage,
+                'last_page' => $lastPage,
+            ],
+            'stats' => $stats,
+        ];
     }
 
     public static function updateStatus(int $id, string $status, ?array $actor = null): array
@@ -685,6 +674,123 @@ final class ReservationService
             'UPDATE TABLE_RESERVATION SET ticket_order_id = NULL WHERE id = :id'
         )->execute(['id' => $reservationId]);
     }
+
+    /**
+     * @return array{0:string,1:array<string, mixed>}
+     */
+    private static function buildFilterClause(array $filters): array
+    {
+        $conditions = [];
+        $params = [];
+
+        if (isset($filters['user_id'])) {
+            $conditions[] = 'r.user_id = :user_id';
+            $params[':user_id'] = (int)$filters['user_id'];
+        }
+
+        $daysBack = isset($filters['days_back']) ? max(1, (int)$filters['days_back']) : 14;
+        $params[':reservation_recent_since'] = (new \DateTimeImmutable(sprintf('-%d days', $daysBack)))->format('Y-m-d H:i:s');
+        $conditions[] = 'r.reserved_date >= :reservation_recent_since';
+
+        $hasExplicitStatus = isset($filters['status']);
+
+        if ($hasExplicitStatus) {
+            $conditions[] = 'r.status = :status';
+            $params[':status'] = (string)$filters['status'];
+        } else {
+            $view = $filters['view'] ?? null;
+            if ($view === 'active') {
+                $statuses = implode("','", self::ACTIVE_STATUSES);
+                $conditions[] = "r.status IN ('{$statuses}')";
+            } elseif ($view === 'completed') {
+                $statuses = implode("','", self::COMPLETED_STATUSES);
+                $conditions[] = "r.status IN ('{$statuses}')";
+            }
+        }
+
+        if (isset($filters['event_id'])) {
+            $conditions[] = 'r.event_id = :event_id';
+            $params[':event_id'] = (int)$filters['event_id'];
+        }
+
+        if (!empty($filters['status_in']) && is_array($filters['status_in'])) {
+            $placeholders = [];
+            foreach (array_values($filters['status_in']) as $index => $status) {
+                $key = ':status_in_' . $index;
+                $placeholders[] = $key;
+                $params[$key] = $status;
+            }
+            if ($placeholders) {
+                $conditions[] = 'r.status IN (' . implode(',', $placeholders) . ')';
+            }
+        }
+
+        $whereClause = $conditions ? ' WHERE ' . implode(' AND ', $conditions) : '';
+
+        return [$whereClause, $params];
+    }
+
+    private static function bindParams(\PDOStatement $stmt, array $params): void
+    {
+        foreach ($params as $placeholder => $value) {
+            $type = is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR;
+            $stmt->bindValue($placeholder, $value, $type);
+        }
+    }
+
+    private static function countReservations(string $whereClause, array $params): int
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT COUNT(*)
+             FROM TABLE_RESERVATION r
+             INNER JOIN USERS u ON u.id = r.user_id
+             INNER JOIN EVENTS e ON e.id = r.event_id
+             LEFT JOIN VENUETABLE t ON t.id = r.assigned_table_id ' . $whereClause
+        );
+        self::bindParams($stmt, $params);
+        $stmt->execute();
+        return (int)$stmt->fetchColumn();
+    }
+
+    /**
+     * @return array<string, int|float>
+     */
+    private static function statusTotals(string $whereClause, array $params): array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT r.status, COUNT(*) AS total, COALESCE(SUM(r.partysize), 0) AS guests
+             FROM TABLE_RESERVATION r
+             INNER JOIN USERS u ON u.id = r.user_id
+             INNER JOIN EVENTS e ON e.id = r.event_id
+             LEFT JOIN VENUETABLE t ON t.id = r.assigned_table_id ' . $whereClause . '
+             GROUP BY r.status'
+        );
+        self::bindParams($stmt, $params);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $defaults = [
+            'pending' => 0,
+            'confirmed' => 0,
+            'seated' => 0,
+            'no_show' => 0,
+            'canceled' => 0,
+            'guest_total' => 0,
+        ];
+
+        foreach ($rows as $row) {
+            $status = $row['status'] ?? null;
+            $total = isset($row['total']) ? (int)$row['total'] : 0;
+            $guests = isset($row['guests']) ? (int)$row['guests'] : 0;
+            if ($status !== null && array_key_exists($status, $defaults)) {
+                $defaults[$status] = $total;
+            }
+            $defaults['guest_total'] += $guests;
+        }
+
+        return $defaults;
+    }
+
     private static function ensurePivotTable(PDO $pdo): void
     {
         static $isEnsured = false;

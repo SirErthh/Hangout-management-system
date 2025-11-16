@@ -256,14 +256,27 @@ final class FnbService
         $conditions = [];
         $params = [];
 
+        $daysBack = isset($filters['days_back']) ? max(1, (int)$filters['days_back']) : 7;
+        $params[':recent_since'] = (new \DateTimeImmutable(sprintf('-%d days', $daysBack)))->format('Y-m-d H:i:s');
+        $conditions[] = 'o.created_at >= :recent_since';
+
         if (isset($filters['user_id'])) {
             $conditions[] = 'o.user_id = :user_id';
             $params[':user_id'] = (int)$filters['user_id'];
         }
 
-        if (isset($filters['status'])) {
+        $hasExplicitStatus = isset($filters['status']);
+
+        if ($hasExplicitStatus) {
             $conditions[] = 'o.status = :status';
             $params[':status'] = (string)$filters['status'];
+        } else {
+            $view = $filters['view'] ?? null;
+            if ($view === 'active') {
+                $conditions[] = "o.status IN ('pending','preparing','ready')";
+            } elseif ($view === 'completed') {
+                $conditions[] = "o.status IN ('completed','cancelled')";
+            }
         }
 
         $whereClause = $conditions ? ' WHERE ' . implode(' AND ', $conditions) : '';

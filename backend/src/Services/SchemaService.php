@@ -24,6 +24,7 @@ final class SchemaService
         self::ensureReservationStatusLogEnums($pdo);
         self::ensureReservationStatusEnum($pdo);
         self::ensureCheckInColumns($pdo);
+        self::ensurePerformanceIndexes($pdo);
         self::seedDefaultData($pdo);
     }
 
@@ -470,4 +471,51 @@ final class SchemaService
             ]);
         }
     }
+
+    private static function ensurePerformanceIndexes(PDO $pdo): void
+    {
+        $schema = Config::get('database.database');
+
+        $indexes = [
+            [
+                'table' => 'FNB_ORDER',
+                'name' => 'idx_fnb_status_created',
+                'sql' => 'CREATE INDEX idx_fnb_status_created ON FNB_ORDER (status, created_at)',
+            ],
+            [
+                'table' => 'TABLE_RESERVATION',
+                'name' => 'idx_reservation_status_date',
+                'sql' => 'CREATE INDEX idx_reservation_status_date ON TABLE_RESERVATION (status, reserved_date)',
+            ],
+            [
+                'table' => 'TICKETS_ORDER',
+                'name' => 'idx_ticket_status_created',
+                'sql' => 'CREATE INDEX idx_ticket_status_created ON TICKETS_ORDER (status, created_at)',
+            ],
+        ];
+
+        foreach ($indexes as $index) {
+            self::ensureIndex($pdo, $schema, $index['table'], $index['name'], $index['sql']);
+        }
+    }
+
+    private static function ensureIndex(PDO $pdo, string $schema, string $table, string $index, string $sql): void
+    {
+        $stmt = $pdo->prepare(
+            'SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+             WHERE TABLE_SCHEMA = :schema
+               AND TABLE_NAME = :table
+               AND INDEX_NAME = :index'
+        );
+        $stmt->execute([
+            'schema' => $schema,
+            'table' => $table,
+            'index' => $index,
+        ]);
+
+        if ((int)$stmt->fetchColumn() === 0) {
+            $pdo->exec($sql);
+        }
+    }
+
 }

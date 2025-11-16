@@ -30,7 +30,7 @@ type Order = {
   items: OrderItem[];
 };
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 20;
 const DEFAULT_STATS: Record<Order["status"], number> = {
   pending: 0,
   preparing: 0,
@@ -39,11 +39,18 @@ const DEFAULT_STATS: Record<Order["status"], number> = {
   cancelled: 0,
 };
 
+const VIEW_OPTIONS: { value: "active" | "completed" | "all"; label: string }[] = [
+  { value: "active", label: "Active" },
+  { value: "completed", label: "Completed" },
+  { value: "all", label: "All" },
+];
+
 const StaffFnB = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
+  const [view, setView] = useState<"active" | "completed" | "all">("active");
   const [meta, setMeta] = useState({
     total: 0,
     per_page: PAGE_SIZE,
@@ -65,6 +72,7 @@ const StaffFnB = () => {
         mine: false,
         page: pageToLoad,
         perPage: PAGE_SIZE,
+        view,
         signal,
       });
 
@@ -99,7 +107,7 @@ const StaffFnB = () => {
         setLoading(false);
       }
     }
-  }, []);
+  }, [view]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -149,6 +157,23 @@ const StaffFnB = () => {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold mb-2">F&B / Kitchen</h1>
           <p className="text-muted-foreground text-sm sm:text-base">Manage food and beverage orders</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {VIEW_OPTIONS.map((option) => (
+            <Button
+              key={option.value}
+              variant={view === option.value ? "default" : "outline"}
+              size="sm"
+              className="min-w-[90px]"
+              onClick={() => {
+                setView(option.value);
+                setPage(1);
+              }}
+              disabled={loading && view === option.value}
+            >
+              {option.label}
+            </Button>
+          ))}
         </div>
       </div>
 

@@ -101,9 +101,14 @@ final class TicketService
         ];
     }
 
-    public static function list(array $filters = []): array
+    public static function list(array $filters = [], int $page = 1, int $perPage = 25): array
     {
+        $perPage = max(1, min(200, $perPage));
+        $page = max(1, $page);
+        $offset = ($page - 1) * $perPage;
+
         $pdo = Database::connection();
+        [$whereClause, $params] = self::buildFilterClause($filters);
 
         $sql = 'SELECT o.id,
                        o.user_id,
@@ -120,32 +125,34 @@ final class TicketService
                 FROM TICKETS_ORDER o
                 INNER JOIN TICKET_ORDER_ITEM i ON i.order_id = o.id
                 INNER JOIN EVENTS e ON e.id = i.event_id
-                INNER JOIN USERS u ON u.id = o.user_id';
-
-        $conditions = [];
-        $params = [];
-
-        if (isset($filters['user_id'])) {
-            $conditions[] = 'o.user_id = :user_id';
-            $params['user_id'] = (int)$filters['user_id'];
-        }
-
-        if (isset($filters['status'])) {
-            $conditions[] = 'o.status = :status';
-            $params['status'] = $filters['status'];
-        }
-
-        if ($conditions) {
-            $sql .= ' WHERE ' . implode(' AND ', $conditions);
-        }
-
-        $sql .= ' ORDER BY o.created_at DESC';
+                INNER JOIN USERS u ON u.id = o.user_id ';
+        $sql .= $whereClause;
+        $sql .= ' ORDER BY o.created_at DESC
+                  LIMIT :limit OFFSET :offset';
 
         $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
+        self::bindParams($stmt, $params);
+        $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        return array_map(static fn(array $row) => self::transformOrder($row), $rows);
+        $orders = array_map(static fn(array $row) => self::transformOrder($row), $rows);
+        $total = self::countOrders($whereClause, $params);
+        $stats = self::statusTotals($whereClause, $params);
+
+        $lastPage = max(1, (int)ceil(max($total, 1) / $perPage));
+
+        return [
+            'orders' => $orders,
+            'meta' => [
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $perPage,
+                'last_page' => $lastPage,
+            ],
+            'stats' => $stats,
+        ];
     }
 
     public static function updateStatus(int $orderId, string $status): array
@@ -520,6 +527,111 @@ final class TicketService
         $value = $stmt->fetchColumn();
 
         return $value ? (int)$value : 0;
+    }
+
+    /**
+     * @return array{0:string,1:array<string, mixed>}
+     */
+    private static function buildFilterClause(array $filters): array
+    {
+        $conditions = [];
+        $params = [];
+
+        if (isset($filters['user_id'])) {
+            $conditions[] = 'o.user_id = :user_id';
+            $params[':user_id'] = (int)$filters['user_id'];
+        }
+
+        $daysBack = isset($filters['days_back']) ? max(1, (int)$filters['days_back']) : 30;
+        $params[':order_recent_since'] = (new \DateTimeImmutable(sprintf('-%d days', $daysBack)))->format('Y-m-d H:i:s');
+        $conditions[] = 'o.created_at >= :order_recent_since';
+
+        $hasExplicitStatus = isset($filters['status']);
+
+        if ($hasExplicitStatus) {
+            $conditions[] = 'o.status = :status';
+            $params[':status'] = (string)$filters['status'];
+        } else {
+            $view = $filters['view'] ?? null;
+            if ($view === 'active') {
+                $conditions[] = "o.status IN ('pending')";
+            } elseif ($view === 'completed') {
+                $conditions[] = "o.status IN ('confirmed','cancelled')";
+            }
+        }
+
+        if (isset($filters['search']) && $filters['search'] !== '') {
+            $params[':search'] = '%' . $filters['search'] . '%';
+            $conditions[] = '(o.order_code LIKE :search
+                OR CONCAT(u.fname, \' \', u.lname) LIKE :search
+                OR e.title LIKE :search
+                OR EXISTS (
+                    SELECT 1
+                    FROM TICKET_CODE tc
+                    INNER JOIN TICKET_ORDER_ITEM toi ON toi.id = tc.order_item_id
+                    WHERE toi.order_id = o.id AND tc.code LIKE :search
+                ))';
+        }
+
+        $whereClause = $conditions ? ' WHERE ' . implode(' AND ', $conditions) : '';
+
+        return [$whereClause, $params];
+    }
+
+    private static function bindParams(\PDOStatement $stmt, array $params): void
+    {
+        foreach ($params as $placeholder => $value) {
+            $type = is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR;
+            $stmt->bindValue($placeholder, $value, $type);
+        }
+    }
+
+    private static function countOrders(string $whereClause, array $params): int
+    {
+        $stmt = Database::connection()->prepare('SELECT COUNT(*) FROM TICKETS_ORDER o
+            INNER JOIN TICKET_ORDER_ITEM i ON i.order_id = o.id
+            INNER JOIN EVENTS e ON e.id = i.event_id
+            INNER JOIN USERS u ON u.id = o.user_id ' . $whereClause);
+        self::bindParams($stmt, $params);
+        $stmt->execute();
+        return (int)$stmt->fetchColumn();
+    }
+
+    /**
+     * @return array<string, int|float>
+     */
+    private static function statusTotals(string $whereClause, array $params): array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT o.status, COUNT(*) AS total, COALESCE(SUM(o.total_baht),0) AS revenue
+             FROM TICKETS_ORDER o
+             INNER JOIN TICKET_ORDER_ITEM i ON i.order_id = o.id
+             INNER JOIN EVENTS e ON e.id = i.event_id
+             INNER JOIN USERS u ON u.id = o.user_id ' . $whereClause . '
+             GROUP BY o.status'
+        );
+        self::bindParams($stmt, $params);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $defaults = [
+            'pending' => 0,
+            'confirmed' => 0,
+            'cancelled' => 0,
+            'revenue' => 0.0,
+        ];
+
+        foreach ($rows as $row) {
+            $status = $row['status'] ?? null;
+            $total = isset($row['total']) ? (int)$row['total'] : 0;
+            $revenue = isset($row['revenue']) ? (float)$row['revenue'] : 0.0;
+            if ($status !== null && array_key_exists($status, $defaults)) {
+                $defaults[$status] = $total;
+            }
+            $defaults['revenue'] += $revenue;
+        }
+
+        return $defaults;
     }
 
     private static function transformOrder(array $row): array

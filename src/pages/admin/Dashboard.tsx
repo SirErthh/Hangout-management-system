@@ -183,10 +183,14 @@ const AdminDashboard = () => {
                 <CardDescription>{stat.title}</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-baseline justify-between">
-                  <h3 className="text-3xl font-bold">{stat.value}</h3>
+                <div className="flex items-baseline justify-between gap-3">
+                  <h3 className="text-3xl font-bold break-words break-all leading-tight max-w-[70%]">
+                    {stat.value}
+                  </h3>
                   {stat.change && (
-                    <span className="text-sm font-medium text-green-500">{stat.change}</span>
+                    <span className="text-sm font-medium text-green-500 text-right break-words">
+                      {stat.change}
+                    </span>
                   )}
                 </div>
               </CardContent>
