@@ -30,7 +30,7 @@ type TicketOrder = {
 
 type Reservation = {
   id: number;
-  event: string;
+  event: string | null;
   partySize: number;
   status: string;
   reservedDate?: string;
@@ -38,6 +38,8 @@ type Reservation = {
   tables?: string[];
   tableIds?: number[];
   tableCapacity?: number | null;
+  ticketOrderId?: number | null;
+  isEventReservation?: boolean;
 };
 
 type FnbOrder = {
@@ -66,6 +68,14 @@ const MyOrders = () => {
 
   useEffect(() => {
     const controller = new AbortController();
+    const safeDate = (value?: string | null) => {
+      if (!value) return 0;
+      const time = Date.parse(value);
+      return Number.isNaN(time) ? 0 : time;
+    };
+
+    const sortByDateDesc = <T,>(list: T[], getDate: (item: T) => number) =>
+      [...(list ?? [])].sort((a, b) => getDate(b) - getDate(a));
 
     const load = async () => {
       setLoading(true);
@@ -76,9 +86,11 @@ const MyOrders = () => {
           api.getFnbOrders({ mine: true, signal: controller.signal }),
         ]);
 
-        setTicketOrders(ticketRes.orders ?? []);
-        setReservations(reservationRes.reservations ?? []);
-        setFnbOrders(fnbRes.orders ?? []);
+        setTicketOrders(sortByDateDesc(ticketRes.orders ?? [], (order) => safeDate(order.createdAt)));
+        setReservations(
+          sortByDateDesc(reservationRes.reservations ?? [], (reservation) => safeDate(reservation.reservedDate ?? reservation.createdAt)),
+        );
+        setFnbOrders(sortByDateDesc(fnbRes.orders ?? [], (order) => safeDate(order.createdAt)));
       } catch (error) {
         if (!controller.signal.aborted) {
           handleApiError(error, "Failed to load your orders");
@@ -259,7 +271,7 @@ const MyOrders = () => {
                         Reservation #{reservation.id}
                       </CardTitle>
                       <CardDescription className="text-xs sm:text-sm">
-                        {reservation.event}
+                        {reservation.event ?? "Normal Reservation"}
                       </CardDescription>
                     </div>
                     <Badge

@@ -10,12 +10,14 @@ import { api, handleApiError } from "@/lib/api";
 import { getFlatStatusBadgeClass, statusBadgeBase } from "@/lib/statusColors";
 import { Textarea } from "@/components/ui/textarea";
 import { PaginationControls } from "@/components/PaginationControls";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type TicketOrder = {
   id: number;
   order_code?: string;
   customer?: string;
   event?: string;
+  event_starts_at?: string | null;
   quantity: number;
   total: number;
   status: "pending" | "confirmed" | "cancelled";
@@ -44,6 +46,16 @@ const VIEW_OPTIONS: { value: "active" | "completed" | "all"; label: string }[] =
   { value: "all", label: "All" },
 ];
 
+const DATE_RANGE_OPTIONS = [
+  { label: "Today", value: 1 },
+  { label: "Last 3 days", value: 3 },
+  { label: "Last 7 days", value: 7 },
+  { label: "Last 14 days", value: 14 },
+  { label: "Last 30 days", value: 30 },
+  { label: "Last 90 days", value: 90 },
+  { label: "Last 365 days", value: 365 },
+];
+
 const StaffTickets = () => {
   const [orders, setOrders] = useState<TicketOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,8 +67,11 @@ const StaffTickets = () => {
   const [confirmAllDialog, setConfirmAllDialog] = useState<number | null>(null);
   const [confirmAllNote, setConfirmAllNote] = useState("");
   const [confirmingAllNotes, setConfirmingAllNotes] = useState(false);
+  const [eventWarning, setEventWarning] = useState<{ orderId: number; code: string; startsAt: string } | null>(null);
+  const [eventWarningBulk, setEventWarningBulk] = useState<{ orderId: number; startsAt: string } | null>(null);
   const [page, setPage] = useState(1);
   const [view, setView] = useState<"active" | "completed" | "all">("active");
+  const [daysBack, setDaysBack] = useState(30);
   const [meta, setMeta] = useState({
     total: 0,
     per_page: PAGE_SIZE,
@@ -83,23 +98,25 @@ const StaffTickets = () => {
           perPage: PAGE_SIZE,
           view,
           query: debouncedSearch || undefined,
+          daysBack,
           signal,
         });
         if (!signal?.aborted) {
-          setOrders((payload.orders ?? []) as TicketOrder[]);
+          const safePayload = payload ?? { orders: [], meta: undefined, stats: undefined };
+          setOrders((safePayload.orders ?? []) as TicketOrder[]);
           setMeta(
-            payload.meta ?? {
-              total: payload.orders?.length ?? 0,
+            safePayload.meta ?? {
+              total: safePayload.orders?.length ?? 0,
               per_page: PAGE_SIZE,
               page: pageToLoad,
               last_page: 1,
             },
           );
           setStats({
-            pending: payload.stats?.pending ?? 0,
-            confirmed: payload.stats?.confirmed ?? 0,
-            cancelled: payload.stats?.cancelled ?? 0,
-            revenue: payload.stats?.revenue ?? 0,
+            pending: safePayload.stats?.pending ?? 0,
+            confirmed: safePayload.stats?.confirmed ?? 0,
+            cancelled: safePayload.stats?.cancelled ?? 0,
+            revenue: safePayload.stats?.revenue ?? 0,
           });
         }
       } catch (error) {
@@ -114,7 +131,7 @@ const StaffTickets = () => {
         }
       }
     },
-    [view, debouncedSearch],
+    [view, debouncedSearch, daysBack],
   );
 
   useEffect(() => {
@@ -165,6 +182,13 @@ const StaffTickets = () => {
   };
 
   const openTicketNoteDialog = (orderId: number, code: string) => {
+    const order = orders.find((o) => o.id === orderId);
+    const eventStartsAt = order?.event_starts_at ? new Date(order.event_starts_at) : null;
+    const now = new Date();
+    if (eventStartsAt && eventStartsAt > now) {
+      setEventWarning({ orderId, code, startsAt: eventStartsAt.toISOString() });
+      return;
+    }
     setTicketNoteDialog({ orderId, code });
     setTicketNote("");
   };
@@ -189,6 +213,29 @@ const StaffTickets = () => {
   };
 
   const openConfirmAllDialog = (orderId: number) => {
+    const order = orders.find((o) => o.id === orderId);
+    const eventStartsAt = order?.event_starts_at ? new Date(order.event_starts_at) : null;
+    const now = new Date();
+    if (eventStartsAt && eventStartsAt > now) {
+      setEventWarningBulk({ orderId, startsAt: eventStartsAt.toISOString() });
+      return;
+    }
+    setConfirmAllDialog(orderId);
+    setConfirmAllNote("");
+  };
+
+  const handleEventWarningProceed = () => {
+    if (!eventWarning) return;
+    const { orderId, code } = eventWarning;
+    setEventWarning(null);
+    setTicketNoteDialog({ orderId, code });
+    setTicketNote("");
+  };
+
+  const handleEventWarningBulkProceed = () => {
+    if (!eventWarningBulk) return;
+    const { orderId } = eventWarningBulk;
+    setEventWarningBulk(null);
     setConfirmAllDialog(orderId);
     setConfirmAllNote("");
   };
@@ -230,7 +277,7 @@ const StaffTickets = () => {
           <h1 className="text-2xl sm:text-3xl font-bold mb-2">Ticket Orders</h1>
           <p className="text-muted-foreground text-sm sm:text-base">Manage and process ticket purchases</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+        <div className="flex flex-col gap-2 w-full sm:w-auto">
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -240,21 +287,44 @@ const StaffTickets = () => {
               className="pl-10"
             />
           </div>
-          <div className="flex gap-2">
-            {VIEW_OPTIONS.map((option) => (
-              <Button
-                key={option.value}
-                variant={view === option.value ? "default" : "outline"}
-                size="sm"
-                onClick={() => {
-                  setView(option.value);
+          <div className="flex flex-col sm:items-end gap-2">
+            <div className="flex flex-wrap gap-2 justify-end">
+              {VIEW_OPTIONS.map((option) => (
+                <Button
+                  key={option.value}
+                  variant={view === option.value ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setView(option.value);
+                    setPage(1);
+                  }}
+                  disabled={loading && view === option.value}
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 justify-end">
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">Date range</span>
+              <Select
+                value={String(daysBack)}
+                onValueChange={(value) => {
+                  setDaysBack(Number(value));
                   setPage(1);
                 }}
-                disabled={loading && view === option.value}
               >
-                {option.label}
-              </Button>
-            ))}
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Date range" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DATE_RANGE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={String(option.value)}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </div>
@@ -410,23 +480,23 @@ const StaffTickets = () => {
                         )}
                       </DialogContent>
                     </Dialog>
-
-                    {order.status === "pending" && (
-                      <Button
-                        onClick={() => updateOrderStatus(order.id, "cancelled")}
-                        variant="destructive"
-                        size="sm"
-                      >
-                        <XCircle className="h-4 w-4 mr-2" />
-                        Cancel Order
-                      </Button>
-                    )}
                   </div>
+
+                  {order.status === "pending" && (
+                    <Button
+                      onClick={() => updateOrderStatus(order.id, "cancelled")}
+                      variant="destructive"
+                      size="sm"
+                    >
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Cancel Order
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             );
           })}
-          </div>
+        </div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t border-border/40">
             <p className="text-sm text-muted-foreground">
               Showing <span className="font-medium">{startItem}</span>-
@@ -439,6 +509,66 @@ const StaffTickets = () => {
       )}
       </div>
 
+      <Dialog
+        open={!!eventWarning}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEventWarning(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Event Not Started</DialogTitle>
+            <DialogDescription>
+              {eventWarning ? (
+                <>
+                  This event starts at {new Date(eventWarning.startsAt).toLocaleString()}. Confirming the ticket
+                  early can grant access before doors open. Continue?
+                </>
+              ) : (
+                "This event has not started yet."
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setEventWarning(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEventWarningProceed}>Confirm Anyway</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!eventWarningBulk}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEventWarningBulk(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Event Not Started</DialogTitle>
+            <DialogDescription>
+              {eventWarningBulk ? (
+                <>
+                  This event starts at {new Date(eventWarningBulk.startsAt).toLocaleString()}. Confirming all tickets
+                  early can grant access before doors open. Continue?
+                </>
+              ) : (
+                "This event has not started yet."
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setEventWarningBulk(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEventWarningBulkProceed}>Confirm Anyway</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={!!ticketNoteDialog}
         onOpenChange={(open) => {

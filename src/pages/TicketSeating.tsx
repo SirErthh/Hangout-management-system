@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Calendar, AlertTriangle, Loader2 } from "lucide-react";
 import { api, handleApiError } from "@/lib/api";
+import { toast } from "sonner";
 
 type TableOption = {
   id: number;
@@ -86,9 +87,40 @@ const TicketSeating = () => {
   }, [event, order]);
 
   const toggleTableSelection = (tableId: number) => {
-    setSelectedTables((prev) =>
-      prev.includes(tableId) ? prev.filter((id) => id !== tableId) : [...prev, tableId],
-    );
+    const table = tables.find((t) => t.id === tableId);
+    const partySize = order?.quantity ?? 0;
+    if (!table || partySize <= 0) {
+      return;
+    }
+
+    const maxFirstTableCapacity = partySize === 1 ? 2 : partySize;
+
+    setSelectedTables((prev) => {
+      if (prev.includes(tableId)) {
+        return prev.filter((id) => id !== tableId);
+      }
+
+      if (prev.length === 0) {
+        if (table.capacity > maxFirstTableCapacity) {
+          toast.error(`Largest table for your party is ${maxFirstTableCapacity} seat(s).`);
+          return prev;
+        }
+        if (table.capacity > partySize) {
+          toast.info("Table successfully choose");
+        }
+        return [...prev, tableId];
+      }
+
+      const currentCapacity = tables
+        .filter((t) => prev.includes(t.id))
+        .reduce((sum, t) => sum + t.capacity, 0);
+      if (currentCapacity + table.capacity > partySize) {
+        toast.error("Selected tables would exceed your party size.");
+        return prev;
+      }
+
+      return [...prev, tableId];
+    });
   };
 
   const handleContinue = () => {
@@ -178,21 +210,41 @@ const TicketSeating = () => {
           ) : (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {tables.map((table) => (
-                  <button
-                    key={table.id}
-                    type="button"
-                    className={`rounded-2xl border p-4 text-left transition ${
-                      selectedTables.includes(table.id)
-                        ? "border-primary bg-primary/10"
-                        : "border-white/40 hover:border-primary"
-                    }`}
-                    onClick={() => toggleTableSelection(table.id)}
-                  >
-                    <p className="font-semibold">{table.number}</p>
-                    <p className="text-sm text-muted-foreground">{table.capacity} seats</p>
-                  </button>
-                ))}
+                {tables.map((table) => {
+                  const partySize = order.quantity ?? 0;
+                  const maxFirstTableCapacity = partySize === 1 ? 2 : partySize;
+                  const isSelected = selectedTables.includes(table.id);
+                  const disableSelection =
+                    !isSelected &&
+                    ((selectedTables.length === 0 && table.capacity > maxFirstTableCapacity) ||
+                      (selectedTables.length > 0 && selectedCapacity + table.capacity > partySize));
+                  return (
+                    <button
+                      key={table.id}
+                      type="button"
+                      className={`rounded-2xl border p-4 text-left transition ${
+                        isSelected
+                          ? "border-primary bg-primary/10"
+                          : "border-white/40 hover:border-primary"
+                      } ${disableSelection ? "opacity-50 cursor-not-allowed" : ""}`}
+                      onClick={() => toggleTableSelection(table.id)}
+                      disabled={disableSelection}
+                      title={
+                        disableSelection
+                          ? "Table capacity exceeds your party size"
+                          : undefined
+                      }
+                    >
+                      <p className="font-semibold">{table.number}</p>
+                      <p className="text-sm text-muted-foreground">{table.capacity} seats</p>
+                      {disableSelection && (
+                        <p className="mt-2 text-xs text-destructive">
+                          Too large for your party
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
               <div className="flex items-center justify-between text-sm">
                 <p>

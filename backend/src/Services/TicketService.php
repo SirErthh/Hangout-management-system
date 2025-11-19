@@ -119,7 +119,9 @@ final class TicketService
                        i.event_id,
                        i.quantity,
                        i.unit_price_baht,
+                       fn_order_line_total(i.quantity, i.unit_price_baht) AS calculated_line_total,
                        e.title AS event_title,
+                       e.starts_at AS event_starts_at,
                        u.fname,
                        u.lname
                 FROM TICKETS_ORDER o
@@ -403,7 +405,9 @@ final class TicketService
                     i.event_id,
                     i.quantity,
                     i.unit_price_baht,
+                    fn_order_line_total(i.quantity, i.unit_price_baht) AS calculated_line_total,
                     e.title AS event_title,
+                    e.starts_at AS event_starts_at,
                     u.fname,
                     u.lname
              FROM TICKETS_ORDER o
@@ -662,8 +666,12 @@ final class TicketService
             'status' => $row['status'],
             'event_id' => (int)$row['event_id'],
             'event' => $row['event_title'],
+            'event_starts_at' => !empty($row['event_starts_at'])
+                ? date('c', strtotime($row['event_starts_at']))
+                : null,
             'quantity' => (int)$row['quantity'],
-            'total' => (float)$row['total_baht'],
+            'line_total' => (float)($row['calculated_line_total'] ?? ($row['quantity'] * $row['unit_price_baht'])),
+            'total' => (float)($row['calculated_line_total'] ?? $row['total_baht']),
             'price' => (float)$row['unit_price_baht'],
             'createdAt' => date('c', strtotime($row['created_at'])),
             'tickets' => array_map(static fn(array $code) => $code['code'], $codes),

@@ -206,7 +206,7 @@ final class FnbService
                     m.name,
                     i.quantity,
                     i.unit_price_baht,
-                    i.line_total_baht,
+                    fn_order_line_total(i.quantity, i.unit_price_baht) AS calculated_line_total,
                     i.status,
                     i.remark
              FROM FNB_ORDER_ITEM i
@@ -230,7 +230,7 @@ final class FnbService
                 'name' => $item['name'],
                 'quantity' => (int)$item['quantity'],
                 'price' => (float)$item['unit_price_baht'],
-                'line_total' => (float)$item['line_total_baht'],
+                'line_total' => (float)($item['calculated_line_total'] ?? ($item['unit_price_baht'] * $item['quantity'])),
                 'status' => $item['status'],
                 'remark' => $item['remark'],
             ], $items),

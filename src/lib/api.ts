@@ -193,6 +193,7 @@ export const api = {
     perPage?: number;
     view?: "active" | "completed" | "all";
     query?: string;
+    daysBack?: number;
     signal?: AbortSignal;
   } = {}) => {
     const params = new URLSearchParams();
@@ -213,6 +214,9 @@ export const api = {
     }
     if (options.query) {
       params.set("q", options.query);
+    }
+    if (options.daysBack) {
+      params.set("days_back", String(options.daysBack));
     }
     const query = params.toString() ? `?${params.toString()}` : "";
     return apiRequest<{
@@ -248,7 +252,7 @@ export const api = {
       { auth: true },
     ),
   getAdminDashboard: () =>
-    apiRequest<{ totalUsers: number; activeEvents: number; totalRevenue: number; staffCount: number }>(
+    apiRequest<{ totalUsers: number; activeEvents: number; totalRevenue: number; staffCount: number; ticketRevenue?: number; fnbRevenue?: number }>(
       "/api/admin/dashboard",
       { auth: true },
     ),
@@ -271,6 +275,7 @@ export const api = {
     page?: number;
     perPage?: number;
     view?: "active" | "completed" | "all";
+    daysBack?: number;
     signal?: AbortSignal;
   }) => {
     const params = new URLSearchParams();
@@ -291,6 +296,9 @@ export const api = {
     }
     if (options?.view) {
       params.set("view", options.view);
+    }
+    if (options?.daysBack) {
+      params.set("days_back", String(options.daysBack));
     }
     const query = params.toString() ? `?${params.toString()}` : "";
     return apiRequest<{
@@ -330,6 +338,7 @@ export const api = {
     page?: number;
     perPage?: number;
     view?: "active" | "completed" | "all";
+    daysBack?: number;
     signal?: AbortSignal;
   } = {}) => {
     const params = new URLSearchParams();
@@ -347,6 +356,9 @@ export const api = {
     }
     if (options.view) {
       params.set("view", options.view);
+    }
+    if (options.daysBack) {
+      params.set("days_back", String(options.daysBack));
     }
     const query = params.toString();
     return apiRequest<{ orders: any[]; meta?: { total: number; page: number; per_page: number; last_page: number }; stats?: Record<string, number> }>(

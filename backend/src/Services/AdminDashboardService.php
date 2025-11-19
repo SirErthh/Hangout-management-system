@@ -37,6 +37,8 @@ final class AdminDashboardService
             'activeEvents' => $activeEvents,
             'totalRevenue' => $totalRevenue,
             'staffCount' => $staffCount,
+            'ticketRevenue' => $ticketRevenue,
+            'fnbRevenue' => $fnbRevenue,
         ];
     }
 }

@@ -45,12 +45,22 @@ const VIEW_OPTIONS: { value: "active" | "completed" | "all"; label: string }[] =
   { value: "all", label: "All" },
 ];
 
+const DATE_RANGE_OPTIONS = [
+  { label: "Today", value: 1 },
+  { label: "Last 3 days", value: 3 },
+  { label: "Last 7 days", value: 7 },
+  { label: "Last 14 days", value: 14 },
+  { label: "Last 30 days", value: 30 },
+  { label: "Last 90 days", value: 90 },
+];
+
 const StaffFnB = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [view, setView] = useState<"active" | "completed" | "all">("active");
+  const [daysBack, setDaysBack] = useState(7);
   const [meta, setMeta] = useState({
     total: 0,
     per_page: PAGE_SIZE,
@@ -73,6 +83,7 @@ const StaffFnB = () => {
         page: pageToLoad,
         perPage: PAGE_SIZE,
         view,
+        daysBack,
         signal,
       });
 
@@ -107,7 +118,7 @@ const StaffFnB = () => {
         setLoading(false);
       }
     }
-  }, [view]);
+  }, [view, daysBack]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -158,22 +169,45 @@ const StaffFnB = () => {
           <h1 className="text-2xl sm:text-3xl font-bold mb-2">F&B / Kitchen</h1>
           <p className="text-muted-foreground text-sm sm:text-base">Manage food and beverage orders</p>
         </div>
-        <div className="flex items-center gap-2">
-          {VIEW_OPTIONS.map((option) => (
-            <Button
-              key={option.value}
-              variant={view === option.value ? "default" : "outline"}
-              size="sm"
-              className="min-w-[90px]"
-              onClick={() => {
-                setView(option.value);
+        <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap justify-end gap-2">
+            {VIEW_OPTIONS.map((option) => (
+              <Button
+                key={option.value}
+                variant={view === option.value ? "default" : "outline"}
+                size="sm"
+                className="min-w-[90px]"
+                onClick={() => {
+                  setView(option.value);
+                  setPage(1);
+                }}
+                disabled={loading && view === option.value}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">Date range</span>
+            <Select
+              value={String(daysBack)}
+              onValueChange={(value) => {
+                setDaysBack(Number(value));
                 setPage(1);
               }}
-              disabled={loading && view === option.value}
             >
-              {option.label}
-            </Button>
-          ))}
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Date range" />
+              </SelectTrigger>
+              <SelectContent>
+                {DATE_RANGE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={String(option.value)}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 

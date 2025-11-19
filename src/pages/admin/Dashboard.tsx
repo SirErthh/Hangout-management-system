@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Calendar, DollarSign, TrendingUp, Zap, ChevronRight } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { api, handleApiError } from "@/lib/api";
 
 const AdminDashboard = () => {
@@ -12,6 +13,8 @@ const AdminDashboard = () => {
     activeEvents: 0,
     totalRevenue: 0,
     staffCount: 0,
+    ticketRevenue: 0,
+    fnbRevenue: 0,
   });
   const [loadingMetrics, setLoadingMetrics] = useState(true);
   const [metricsError, setMetricsError] = useState<string | null>(null);
@@ -34,6 +37,8 @@ const AdminDashboard = () => {
           activeEvents: data.activeEvents ?? 0,
           totalRevenue: data.totalRevenue ?? 0,
           staffCount: data.staffCount ?? 0,
+          ticketRevenue: data.ticketRevenue ?? 0,
+          fnbRevenue: data.fnbRevenue ?? 0,
         });
       } catch (error) {
         if (!mounted) return;
@@ -96,6 +101,12 @@ const AdminDashboard = () => {
       go: () => goto("/admin/users"),
     },
   ];
+
+  const revenueBreakdown = [
+    { label: "Ticket Sales", value: metrics.ticketRevenue || 0, color: "#6366F1" },
+    { label: "Food & Beverage", value: metrics.fnbRevenue || 0, color: "#10B981" },
+  ];
+  const totalBreakdown = revenueBreakdown.reduce((sum, item) => sum + item.value, 0);
 
   // Reusable QuickAction row (clean, left-aligned, better type scale)
   const QuickAction = ({
@@ -198,6 +209,65 @@ const AdminDashboard = () => {
           );
         })}
       </div>
+
+      <Card className="glass-panel border-none">
+        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle>Revenue Mix</CardTitle>
+            <CardDescription>Ticket vs FNB contribution</CardDescription>
+          </div>
+          <p className="text-sm font-medium text-muted-foreground">
+            Total: {loadingMetrics ? "…" : formatCurrency(metrics.totalRevenue)}
+          </p>
+        </CardHeader>
+        <CardContent>
+          {totalBreakdown <= 0 ? (
+            <p className="text-sm text-muted-foreground">Revenue data will appear once orders are recorded.</p>
+          ) : (
+            <div className="flex flex-col md:flex-row gap-8 items-center">
+              <div className="w-full md:w-1/2 h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={revenueBreakdown}
+                      innerRadius={70}
+                      outerRadius={100}
+                      dataKey="value"
+                      paddingAngle={4}
+                    >
+                      {revenueBreakdown.map((entry, index) => (
+                        <Cell key={entry.label} fill={entry.color} stroke="transparent" />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex-1 space-y-4 w-full">
+                {revenueBreakdown.map((item) => {
+                  const percent = totalBreakdown > 0 ? ((item.value / totalBreakdown) * 100).toFixed(1) : "0";
+                  return (
+                    <div
+                      key={item.label}
+                      className="flex items-center justify-between gap-4 rounded-2xl border border-white/50 bg-white/70 dark:bg-slate-900/50 px-4 py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
+                        <div>
+                          <p className="font-semibold">{item.label}</p>
+                          <p className="text-xs text-muted-foreground">{percent}% of revenue</p>
+                        </div>
+                      </div>
+                      <p className="text-lg font-semibold">
+                        {formatCurrency(item.value)}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <Card className="glass-panel border-none">

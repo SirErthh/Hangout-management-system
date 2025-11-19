@@ -259,8 +259,8 @@ final class DayClosureService
 
         $pdo->prepare(
             'UPDATE TICKETS_ORDER
-             SET status = "completed"
-             WHERE status <> "completed"
+             SET status = "confirmed"
+             WHERE status <> "confirmed"
                AND id IN (
                    SELECT DISTINCT toi.order_id
                    FROM TICKET_ORDER_ITEM toi

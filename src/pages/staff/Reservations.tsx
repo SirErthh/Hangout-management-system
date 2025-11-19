@@ -9,6 +9,7 @@ import { Calendar, Users, CheckCircle, XCircle, LayoutGrid } from "lucide-react"
 import { api, handleApiError } from "@/lib/api";
 import { getFlatStatusBadgeClass, statusBadgeBase } from "@/lib/statusColors";
 import { PaginationControls } from "@/components/PaginationControls";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Reservation = {
   id: number;
@@ -47,6 +48,15 @@ const VIEW_OPTIONS: { value: "active" | "completed" | "all"; label: string }[] =
   { value: "all", label: "All" },
 ];
 
+const DATE_RANGE_OPTIONS = [
+  { label: "Today", value: 1 },
+  { label: "Last 3 days", value: 3 },
+  { label: "Last 7 days", value: 7 },
+  { label: "Last 14 days", value: 14 },
+  { label: "Last 30 days", value: 30 },
+  { label: "Last 90 days", value: 90 },
+];
+
 const StaffReservations = () => {
   const navigate = useNavigate();
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -55,6 +65,7 @@ const StaffReservations = () => {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [view, setView] = useState<"active" | "completed" | "all">("active");
+  const [daysBack, setDaysBack] = useState(14);
   const [meta, setMeta] = useState({
     total: 0,
     per_page: PAGE_SIZE,
@@ -68,11 +79,19 @@ const StaffReservations = () => {
       setLoading(true);
       try {
         const [reservationsRes, tablesRes] = await Promise.all([
-          api.getReservations({ mine: false, page: pageToLoad, perPage: PAGE_SIZE, view, signal }),
+          api.getReservations({ mine: false, page: pageToLoad, perPage: PAGE_SIZE, view, daysBack, signal }),
           api.getTables(signal),
         ]);
         if (!signal?.aborted) {
-          setReservations(reservationsRes.reservations ?? []);
+          const parseDate = (value?: string) => {
+            if (!value) return Number.POSITIVE_INFINITY;
+            const time = Date.parse(value);
+            return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
+          };
+          const sortedReservations = [...(reservationsRes.reservations ?? [])].sort(
+            (a, b) => parseDate(a.reservedDate) - parseDate(b.reservedDate),
+          );
+          setReservations(sortedReservations);
           setTables(tablesRes.tables ?? []);
           setMeta(
             reservationsRes.meta ?? {
@@ -103,7 +122,7 @@ const StaffReservations = () => {
         }
       }
     },
-    [view],
+    [view, daysBack],
   );
 
   useEffect(() => {
@@ -163,66 +182,89 @@ const StaffReservations = () => {
           <h1 className="text-2xl sm:text-3xl font-bold mb-2">Reservations</h1>
           <p className="text-muted-foreground text-sm sm:text-base">Manage table bookings</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {VIEW_OPTIONS.map((option) => (
-            <Button
-              key={option.value}
-              variant={view === option.value ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                setView(option.value);
+        <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap justify-end gap-2">
+            {VIEW_OPTIONS.map((option) => (
+              <Button
+                key={option.value}
+                variant={view === option.value ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setView(option.value);
+                  setPage(1);
+                }}
+                disabled={loading && view === option.value}
+              >
+                {option.label}
+              </Button>
+            ))}
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2 w-full sm:w-auto">
+                  <LayoutGrid className="h-4 w-4" />
+                  Table Status
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Table Status Overview</DialogTitle>
+                </DialogHeader>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4">
+                  {tables.map((table) => (
+                    <Card
+                      key={table.id}
+                      className={`glass-effect border-2 ${
+                        table.status === "occupied"
+                          ? "border-red-500/50"
+                          : table.status === "inactive"
+                          ? "border-yellow-500/50"
+                          : "border-green-500/50"
+                      }`}
+                    >
+                      <CardHeader className="p-4 text-center">
+                        <CardTitle className="text-2xl">{table.number}</CardTitle>
+                        <CardDescription className="text-xs">{table.capacity} seats</CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-2">
+                        <div
+                          className={`text-center py-1 rounded text-xs font-semibold ${
+                            table.status === "available"
+                              ? "bg-green-500/20 text-green-500"
+                              : table.status === "inactive"
+                              ? "bg-yellow-500/20 text-yellow-600"
+                              : "bg-red-500/20 text-red-500"
+                          }`}
+                        >
+                          {table.status}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">Date range</span>
+            <Select
+              value={String(daysBack)}
+              onValueChange={(value) => {
+                setDaysBack(Number(value));
                 setPage(1);
               }}
-              disabled={loading && view === option.value}
             >
-              {option.label}
-            </Button>
-          ))}
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="gap-2 w-full sm:w-auto">
-                <LayoutGrid className="h-4 w-4" />
-                Table Status
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Table Status Overview</DialogTitle>
-              </DialogHeader>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-4">
-                {tables.map((table) => (
-                  <Card
-                    key={table.id}
-                    className={`glass-effect border-2 ${
-                      table.status === "occupied"
-                        ? "border-red-500/50"
-                        : table.status === "inactive"
-                        ? "border-yellow-500/50"
-                        : "border-green-500/50"
-                    }`}
-                  >
-                    <CardHeader className="p-4 text-center">
-                      <CardTitle className="text-2xl">{table.number}</CardTitle>
-                      <CardDescription className="text-xs">{table.capacity} seats</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-2">
-                      <div
-                        className={`text-center py-1 rounded text-xs font-semibold ${
-                          table.status === "available"
-                            ? "bg-green-500/20 text-green-500"
-                            : table.status === "inactive"
-                            ? "bg-yellow-500/20 text-yellow-600"
-                            : "bg-red-500/20 text-red-500"
-                        }`}
-                      >
-                        {table.status}
-                      </div>
-                    </CardContent>
-                  </Card>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Date range" />
+              </SelectTrigger>
+              <SelectContent>
+                {DATE_RANGE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={String(option.value)}>
+                    {option.label}
+                  </SelectItem>
                 ))}
-              </div>
-            </DialogContent>
-          </Dialog>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 

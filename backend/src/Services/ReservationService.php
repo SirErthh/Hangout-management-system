@@ -302,12 +302,15 @@ final class ReservationService
         $tableIds = array_map(static fn(array $table) => $table['id'], $tablesData);
         $tablesCapacity = array_sum(array_map(static fn(array $table) => $table['capacity'], $tablesData));
 
+        $ticketOrderId = isset($row['ticket_order_id']) && $row['ticket_order_id'] !== null ? (int)$row['ticket_order_id'] : null;
+        $isEventReservation = $ticketOrderId !== null;
+
         return [
             'id' => (int)$row['id'],
             'user_id' => (int)$row['user_id'],
             'customer' => trim($row['fname'] . ' ' . $row['lname']),
             'event_id' => (int)$row['event_id'],
-            'event' => $row['event_title'],
+            'event' => $isEventReservation ? $row['event_title'] : null,
             'partySize' => (int)$row['partysize'],
             'reservedDate' => date('c', strtotime($row['reserved_date'])),
             'status' => $row['status'],
@@ -319,7 +322,8 @@ final class ReservationService
                 ? $tablesCapacity
                 : ($row['table_capacity'] !== null ? (int)$row['table_capacity'] : null),
             'assigned_table_id' => $row['assigned_table_id'] ? (int)$row['assigned_table_id'] : null,
-            'ticket_order_id' => isset($row['ticket_order_id']) && $row['ticket_order_id'] !== null ? (int)$row['ticket_order_id'] : null,
+            'ticketOrderId' => $ticketOrderId,
+            'isEventReservation' => $isEventReservation,
             'isPlaceholder' => isset($row['is_placeholder']) ? (int)$row['is_placeholder'] === 1 : false,
             'holdExpiresAt' => !empty($row['hold_expires_at']) ? date('c', strtotime($row['hold_expires_at'])) : null,
             'createdAt' => date('c', strtotime($row['created_at'])),
