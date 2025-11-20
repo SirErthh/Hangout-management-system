@@ -10,6 +10,7 @@ use RuntimeException;
 
 final class FnbController
 {
+    // รายการสั่งอาหารและเครื่องดื่ม พร้อมต filter
     public function index(Request $request): array
     {
         $filters = [];
@@ -55,6 +56,7 @@ final class FnbController
         ];
     }
 
+    // update สถานะการสั่งอาหาร/เครื่องดื่ม
     public function updateStatus(Request $request): array
     {
         $this->ensureStaff($request);

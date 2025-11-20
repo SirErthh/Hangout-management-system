@@ -10,6 +10,7 @@ use PDO;
 
 final class TableService
 {
+    // คืนรายชื่อโต๊ะทั้งหมดพร้อมสถานะ (ว่าง/ไม่ว่าง/ปิดใช้งาน) สำหรับวันที่ระบุ
     public static function all(?string $date = null): array
     {
         $pdo = Database::connection();
@@ -64,6 +65,7 @@ final class TableService
         }, $tables);
     }
 
+    // คืนรายชื่อโต๊ะที่ว่างสำหรับ event ที่ระบุ
     public static function availableForEvent(int $eventId): array
     {
         $pdo = Database::connection();
@@ -152,6 +154,7 @@ final class TableService
     /**
      * @return array{0: string, 1: string}
      */
+    // แปลงวันที่เป็นช่วงเวลาของวันนั้น
     private static function resolveWindow(?string $date): array
     {
         try {

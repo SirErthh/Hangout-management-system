@@ -12,6 +12,7 @@ use RuntimeException;
 
 final class ReservationController
 {
+    // ลิสต์ order ตั๋วทั้งหมดและ filter
     public function index(Request $request): array
     {
         $filters = [];
@@ -60,6 +61,7 @@ final class ReservationController
         ];
     }
 
+    // ลูกค้าสร้างการจองใหม่
     public function store(Request $request): array
     {
         $user = $request->user();
@@ -98,6 +100,7 @@ final class ReservationController
         return ['reservation' => $reservation];
     }
 
+    // สตาฟ/แอดมินเปลี่ยนสถานะการจอง
     public function updateStatus(Request $request): array
     {
         $this->ensureStaff($request);
@@ -111,6 +114,7 @@ final class ReservationController
         return ['reservation' => $reservation];
     }
 
+    // ผูกโต๊ะให้การจอง (รองรับ multiple IDs)
     public function assignTable(Request $request): array
     {
         $this->ensureStaff($request);
@@ -133,6 +137,7 @@ final class ReservationController
         return ['reservation' => $reservation];
     }
 
+    // ลิสต์โต๊ะทั้งหมดพร้อมสถานะการจองในวันหนึ่ง
     public function tables(Request $request): array
     {
         $this->ensureStaff($request);

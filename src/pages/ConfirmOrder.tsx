@@ -12,10 +12,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 const ConfirmOrder = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  // เก็บข้อมูล order + โต๊ะที่เลือก + รายละเอียดงาน
   const [orderDetails, setOrderDetails] = useState<any>(null);
   const [seatingSelection, setSeatingSelection] = useState<any>(null);
   const [eventDetails, setEventDetails] = useState<any>(location.state?.event ?? null);
 
+  // ตรวจว่า state ครบไหม ถ้าไม่ให้ย้อนกลับ
   useEffect(() => {
     if (location.state?.order && location.state?.seating) {
       setOrderDetails(location.state.order);
@@ -30,6 +32,7 @@ const ConfirmOrder = () => {
     }
   }, [location, navigate]);
 
+  // กดยืนยันคำสั่งซื้อ
   const handleConfirm = async () => {
     if (!orderDetails) return;
     if (!orderDetails.eventId) {

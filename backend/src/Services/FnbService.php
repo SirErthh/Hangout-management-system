@@ -9,6 +9,7 @@ use RuntimeException;
 
 final class FnbService
 {
+    // บันทึกออเดอร์อาหารพร้อมรายละเอียดแต่ละเมนู
     public static function createOrder(array $data): array
     {
         $pdo = Database::connection();
@@ -93,6 +94,7 @@ final class FnbService
         return self::find($orderId) ?? [];
     }
 
+    // คืนลิสต์ออเดอร์ F&B พร้อม filter/pagination
     public static function list(array $filters = [], int $page = 1, int $perPage = 25): array
     {
         $perPage = max(1, min(200, $perPage));
@@ -143,6 +145,7 @@ final class FnbService
         ];
     }
 
+    // ปรับสถานะการทำอาหารและเวลาชำระเงิน
     public static function updateStatus(int $orderId, string $status): array
     {
         $allowed = ['pending', 'preparing', 'ready', 'completed', 'cancelled'];
@@ -170,6 +173,7 @@ final class FnbService
         return self::find($orderId) ?? [];
     }
 
+    // ดึงคำสั่งซื้อเดี่ยวพร้อมรายการอาหาร
     public static function find(int $orderId): ?array
     {
         $pdo = Database::connection();
@@ -237,6 +241,7 @@ final class FnbService
         ];
     }
 
+    // เลือกโต๊ะแรกที่ active ใช้เป็นค่า default
     private static function defaultTableId(): int
     {
         $stmt = Database::connection()->query('SELECT id FROM VENUETABLE WHERE is_active = 1 ORDER BY id ASC LIMIT 1');

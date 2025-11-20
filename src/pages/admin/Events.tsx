@@ -58,6 +58,7 @@ const STATUS_BADGES: Record<
 };
 
 const AdminEvents = () => {
+  // รายการอีเวนต์ + สถานะต่าง ๆ ของ dialog/ฟอร์ม
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -79,6 +80,7 @@ const AdminEvents = () => {
     capacity: "",
   });
 
+  // ดึงรายการอีเวนต์ด้วย API
   const loadEvents = useCallback(
     async (signal?: AbortSignal) => {
       setLoading(true);

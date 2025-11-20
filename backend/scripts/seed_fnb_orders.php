@@ -7,6 +7,7 @@ require dirname(__DIR__) . '/bootstrap.php';
 use App\Services\Database;
 use PDO;
 
+// จำนวนออเดอร์เริ่มต้น, ขนาด batch, และจำนวนวันย้อนหลังสูงสุด
 const DEFAULT_TARGET = 10_000;
 const BATCH_SIZE = 250;
 const MAX_DAYS_BACK = 120;
@@ -35,6 +36,7 @@ if (empty($menuItems)) {
     exit(1);
 }
 
+// prepared statement สำหรับ insert order/รายการอาหาร
 $orderStmt = $pdo->prepare(
     'INSERT INTO FNB_ORDER (user_id, venue_table_id, status, created_at, note, total_baht, payment_method, paid_by_user_id, paid_at)
      VALUES (:user_id, :table_id, :status, :created_at, :note, :total, :payment_method, :paid_by, :paid_at)'
@@ -55,6 +57,7 @@ $notes = [
     'Prefers less spicy',
 ];
 
+// ตัวนับสถานะการ insert
 $inserted = 0;
 $batch = 0;
 
@@ -121,6 +124,7 @@ function fetchColumn(PDO $pdo, string $sql): array
     return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
 }
 
+// ดึงเมนู active พร้อมราคา
 function fetchMenuItems(PDO $pdo): array
 {
     $stmt = $pdo->query('SELECT id, price FROM MENU_ITEM WHERE is_active = 1 ORDER BY id ASC');
@@ -136,6 +140,7 @@ function randomValue(array $pool)
     return $pool[random_int(0, count($pool) - 1)];
 }
 
+// สุ่มวันย้อนหลังเพื่อให้ข้อมูลกระจาย
 function randomPastDate(int $maxDaysBack): string
 {
     $days = random_int(0, $maxDaysBack);
@@ -144,6 +149,7 @@ function randomPastDate(int $maxDaysBack): string
     return $date->format('Y-m-d H:i:s');
 }
 
+// สุ่มรายการอาหารต่อ order พร้อมจำนวน/หมายเหตุ
 function buildItems(array $menuItems): array
 {
     $itemCount = random_int(1, min(5, count($menuItems)));

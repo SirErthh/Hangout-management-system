@@ -19,6 +19,7 @@ final class UploadController
         'image/webp' => 'webp',
     ];
 
+    // อัพโหลดรูปภาพจาก data URL
     public function store(Request $request): array
     {
         $user = $request->user();

@@ -22,10 +22,12 @@ const isImageSource = (value: string) => /^(https?:\/\/|\/|data:)/i.test(value.t
 
 const Landing = () => {
   const navigate = useNavigate();
+  // รายการอีเวนต์
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const isLoggedIn = !!authStorage.getUser();
 
+  // โหลดอีเวนต์ที่กำลังจะมาถึง
   useEffect(() => {
     const controller = new AbortController();
 
@@ -56,6 +58,7 @@ const Landing = () => {
     return () => controller.abort();
   }, []);
 
+  // โชว์อีเวนต์ที่กำลังจะมาถึง 4 อีเวนต์
   const upcomingEvents: DisplayEvent[] = useMemo(() => {
     const now = new Date();
 
@@ -81,6 +84,7 @@ const Landing = () => {
       .slice(0, 4);
   }, [events]);
 
+  // ปุดฟีเจอร์หลัก
   const features = [
     {
       icon: Calendar,

@@ -9,16 +9,19 @@ use RuntimeException;
 
 final class DayClosureService
 {
+    // show ข้อมูลวันปัจจุบัน for dashboard
     public static function getToday(): ?array
     {
         return self::current();
     }
 
+    // alias สำหรับปิดวันผ่าน controller
     public static function store(array $data): array
     {
         return self::closeDay($data);
     }
 
+    // เปิดรอบวันใหม่หรือรีเซ็ตรอบที่มีอยู่
     public static function startDay(array $payload = []): array
     {
         $pdo = Database::connection();
@@ -98,6 +101,7 @@ final class DayClosureService
         ];
     }
 
+    // ปิดวันคำนวณยอดขายแล้วล็อกสถานะ
     public static function closeDay(array $payload = []): array
     {
         $pdo = Database::connection();
@@ -151,6 +155,7 @@ final class DayClosureService
         ];
     }
 
+    // สรุปยอดขายตั๋วและ F&B ในวันที่กำหนด
     public static function summary(string $date): array
     {
         $pdo = Database::connection();
@@ -165,6 +170,7 @@ final class DayClosureService
         ];
     }
 
+    // ค้นหา record ตามวันที่
     public static function findByDate(string $date): ?array
     {
         $stmt = Database::connection()->prepare(
@@ -179,6 +185,7 @@ final class DayClosureService
         return $row ? self::transform($row) : null;
     }
 
+    // แปลงฟิลด์ฐานข้อมูลให้เป็น key camelCase ที่ frontend ใช้งาน
     private static function transform(array $row): array
     {
         return [
@@ -194,6 +201,7 @@ final class DayClosureService
         ];
     }
 
+    // ดึงยอดขายตั๋วรวมในวันนั้น
     private static function ticketSummary(PDO $pdo, string $date): array
     {
         $stmt = $pdo->prepare(
@@ -215,6 +223,7 @@ final class DayClosureService
         ];
     }
 
+    // ดึงยอดขาย F&B ในวันนั้น
     private static function fnbSummary(PDO $pdo, string $date): array
     {
         $stmt = $pdo->prepare(
@@ -233,6 +242,7 @@ final class DayClosureService
         ];
     }
 
+    // หลังปิดวันให้ปรับสถานะสำคัญให้จบงานอัตโนมัติ
     private static function resetDayState(PDO $pdo, string $date): void
     {
         $pdo->prepare(
@@ -278,6 +288,7 @@ final class DayClosureService
         return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     }
 
+    // หา record ที่ยัง status = open เพื่อตรวจสอบว่าปัจจุบันเปิดวันอยู่หรือไม่
     public static function current(): ?array
     {
         $pdo = Database::connection();
@@ -296,6 +307,7 @@ final class DayClosureService
         return null;
     }
 
+    // สร้าง pivot TABLE_RESERVATION_TABLE (ใช้ผูกหลายโต๊ะต่อหนึ่งการจอง)
     private static function ensureReservationTablePivot(PDO $pdo): void
     {
         static $ensured = false;
@@ -320,6 +332,7 @@ final class DayClosureService
         $ensured = true;
     }
 
+    // คืนวันล่าสุดที่ปิดสำเร็จ
     public static function latestClosed(): ?array
     {
         $stmt = Database::connection()->query(

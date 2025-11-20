@@ -12,6 +12,7 @@ use RuntimeException;
 
 final class EventController
 {
+    // รายการ event ทั้งหมด with filter
     public function index(Request $request): array
     {
         $activeFlag = strtolower((string)$request->query('active', '0'));
@@ -20,6 +21,7 @@ final class EventController
         return ['events' => EventService::all($onlyActive)];
     }
 
+    // ดูรายละเอียด event เดี่ยว
     public function show(Request $request): array
     {
         $id = (int)$request->param('id');
@@ -31,6 +33,7 @@ final class EventController
         return ['event' => $event];
     }
 
+    // แอดมินสร้าง event
     public function store(Request $request): array
     {
         $this->ensureAdmin($request);
@@ -40,6 +43,7 @@ final class EventController
         return ['event' => $event];
     }
 
+    // แอดมินแก้ไข event
     public function update(Request $request): array
     {
         $this->ensureAdmin($request);
@@ -63,6 +67,7 @@ final class EventController
         return ['message' => 'Event deleted'];
     }
 
+    // update สถานะ event
     public function updateStatus(Request $request): array
     {
         $this->ensureAdmin($request);
@@ -77,6 +82,7 @@ final class EventController
         return ['event' => $event];
     }
 
+    // ลูกค้าสั่งบัตรพร้อมเลือกโต๊ะ
     public function orderTickets(Request $request): array
     {
         $eventId = (int)$request->param('id');
@@ -112,6 +118,7 @@ final class EventController
         return ['order' => $ticketOrder];
     }
 
+    // ดูโต๊ะที่ว่างสำหรับ eventนั้น
     public function availableTables(Request $request): array
     {
         $user = $request->user();
@@ -128,6 +135,7 @@ final class EventController
         return ['tables' => $tables];
     }
 
+    // ตรวจสอบและเตรียมข้อมูล event
     private function validate(Request $request): array
     {
         $payload = $request->all();

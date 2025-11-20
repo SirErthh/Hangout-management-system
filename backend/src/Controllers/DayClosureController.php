@@ -10,6 +10,7 @@ use RuntimeException;
 
 final class DayClosureController
 {
+    // แสดงสถานะปัจจุบันและ summary ของวันถัดไป
     public function show(Request $request): array
     {
         $this->ensureAdmin($request);
@@ -34,18 +35,21 @@ final class DayClosureController
         ];
     }
 
+    // ปิดวันทำการ
     public function store(Request $request): array
     {
         $this->ensureAdmin($request);
         return DayClosureService::store($request->all());
     }
 
+    // เปิดวันใหม่หรือรีเซ็ตวันที่เลือก
     public function start(Request $request): array
     {
         $this->ensureAdmin($request);
         return DayClosureService::startDay($request->all());
     }
 
+    // helper ตรวจ role ว่าเป็น admin เท่านั้น
     private function ensureAdmin(Request $request): void
     {
         $user = $request->user();

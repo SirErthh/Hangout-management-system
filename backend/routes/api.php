@@ -31,6 +31,7 @@ $uploads = new UploadController();
 $staffDashboard = new StaffDashboardController();
 $adminDashboard = new AdminDashboardController();
 
+// Authentication routes
 $router->post('/api/auth/register', [$auth, 'register']);
 $router->post('/api/auth/login', [$auth, 'login']);
 $router->get('/api/auth/me', [$auth, 'me'], ['auth']);
@@ -38,6 +39,7 @@ $router->get('/api/auth/me', [$auth, 'me'], ['auth']);
 $router->put('/api/profile', [$profile, 'update'], ['auth']);
 $router->delete('/api/profile', [$profile, 'destroy'], ['auth']);
 
+// จัดการอีเวนต์และตั๋ว
 $router->get('/api/events', [$events, 'index']);
 $router->get('/api/events/{id}', [$events, 'show']);
 $router->get('/api/events/{id}/available-tables', [$events, 'availableTables'], ['auth']);
@@ -52,25 +54,30 @@ $router->patch('/api/ticket-orders/{id}/status', [$tickets, 'updateStatus'], ['a
 $router->post('/api/ticket-orders/{id}/confirm', [$tickets, 'confirmTicket'], ['auth']);
 $router->post('/api/ticket-orders/{id}/confirm-all', [$tickets, 'confirmAll'], ['auth']);
 
+// เมนูอาหาร
 $router->get('/api/menu-items', [$menu, 'index']);
 $router->post('/api/menu-items', [$menu, 'store'], ['auth']);
 $router->put('/api/menu-items/{id}', [$menu, 'update'], ['auth']);
 $router->delete('/api/menu-items/{id}', [$menu, 'destroy'], ['auth']);
 $router->post('/api/menu-orders', [$menu, 'order'], ['auth']);
 
+// ออเดอร์ F&B
 $router->get('/api/fnb-orders', [$fnb, 'index'], ['auth']);
 $router->patch('/api/fnb-orders/{id}/status', [$fnb, 'updateStatus'], ['auth']);
 
+// จัดการการจองโต๊ะ
 $router->get('/api/reservations', [$reservations, 'index'], ['auth']);
 $router->post('/api/reservations', [$reservations, 'store'], ['auth']);
 $router->patch('/api/reservations/{id}/status', [$reservations, 'updateStatus'], ['auth']);
 $router->post('/api/reservations/{id}/assign-table', [$reservations, 'assignTable'], ['auth']);
 $router->get('/api/tables', [$reservations, 'tables'], ['auth']);
 
+// ปิด/เปิดวันทำการ
 $router->get('/api/day-closure', [$dayClosure, 'show'], ['auth']);
 $router->post('/api/day-closure', [$dayClosure, 'store'], ['auth']);
 $router->post('/api/day-closure/start', [$dayClosure, 'start'], ['auth']);
 
+// ผู้ใช้, อัปโหลด, dashboard
 $router->get('/api/users', [$users, 'index'], ['auth']);
 $router->patch('/api/users/{id}/role', [$users, 'updateRole'], ['auth']);
 $router->post('/api/uploads', [$uploads, 'store'], ['auth']);

@@ -22,18 +22,22 @@ interface ProfileProps {
 }
 
 const Profile = ({ onProfileUpdate, onAccountDeleted }: ProfileProps) => {
+  // ใช้เปลี่ยนหน้าเมื่อ token หมดอายุหรือหลังลบแอคเคานต์
   const navigate = useNavigate();
+  // เก็บข้อมูลฟอร์มโปรไฟล์
   const [formData, setFormData] = useState({
     fname: "",
     lname: "",
     email: "",
     phone: "",
   });
+  // state คุมสถานะโหลด/บันทึก/ลบ
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
+  // ดึงข้อมูลโปรไฟล์ตอนเข้าเพจ
   useEffect(() => {
     const loadProfile = async () => {
       setLoading(true);
@@ -57,6 +61,7 @@ const Profile = ({ onProfileUpdate, onAccountDeleted }: ProfileProps) => {
     loadProfile();
   }, [navigate]);
 
+  // กดเซฟข้อมูลโปรไฟล์
   const handleUpdate = async () => {
     setSaving(true);
     try {
@@ -76,6 +81,7 @@ const Profile = ({ onProfileUpdate, onAccountDeleted }: ProfileProps) => {
     }
   };
 
+  // กดยืนยันลบบัญชี
   const handleDelete = async () => {
     setDeleting(true);
     try {

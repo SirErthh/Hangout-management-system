@@ -9,6 +9,7 @@ use RuntimeException;
 
 final class AuthService
 {
+    // สร้าง token จากข้อมูลผู้ใช้
     public static function generateToken(array $user): string
     {
         $secret = Config::get('auth.token_secret');
@@ -27,6 +28,7 @@ final class AuthService
         return self::encode($payload, $secret);
     }
 
+    // แปลง token กลับเป็น array {id, role}
     public static function decodeToken(string $token): array
     {
         $secret = Config::get('auth.token_secret');
@@ -39,6 +41,7 @@ final class AuthService
         ];
     }
 
+    // encode header/payload/signature according to JWT standard
     private static function encode(array $payload, string $secret): string
     {
         $header = ['alg' => 'HS256', 'typ' => 'JWT'];
@@ -54,6 +57,7 @@ final class AuthService
         return implode('.', $segments);
     }
 
+    // ตรวจสอบ token ว่าถูกต้อง/ไม่หมดอายุ
     private static function decode(string $token, string $secret): array
     {
         $segments = explode('.', $token);

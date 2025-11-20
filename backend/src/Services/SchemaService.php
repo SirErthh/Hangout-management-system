@@ -10,6 +10,7 @@ use PDOException;
 
 final class SchemaService
 {
+    // เรียกฟังก์ชันย่อยต่างๆ เพื่ออัปเดต schema ให้เป็นปัจจุบัน
     public static function migrate(): void
     {
         $pdo = Database::connection();
@@ -28,6 +29,7 @@ final class SchemaService
         self::seedDefaultData($pdo);
     }
 
+    // เพิ่มคอลัมน์ที่จำเป็นในตาราง CHECK_IN
     private static function ensureCheckInColumns(PDO $pdo): void
     {
         $schema = Config::get('database.database');
@@ -58,6 +60,7 @@ final class SchemaService
         }
     }
 
+    // เพิ่มค่า enum สถานะ completed ให้ตาราง TABLE_RESERVATION
     private static function ensureReservationStatusEnum(PDO $pdo): void
     {
         $schema = Config::get('database.database');
@@ -82,6 +85,7 @@ final class SchemaService
         );
     }
 
+    // อัปเดต enum ในตาราง RESERVATIONSTATUSLOG ให้รองรับ completed เช่นกัน
     private static function ensureReservationStatusLogEnums(PDO $pdo): void
     {
         $schema = Config::get('database.database');
@@ -111,6 +115,7 @@ final class SchemaService
         }
     }
 
+    // ลบคอลัมน์ payment_note เก่าออกจาก TICKETS_ORDER หากยังหลงเหลือ
     private static function ensureTicketOrderColumns(PDO $pdo): void
     {
         $schema = Config::get('database.database');
@@ -129,6 +134,7 @@ final class SchemaService
         }
     }
 
+    // ลบคอลัมน์ payment_note จาก FNB_ORDER
     private static function ensureFnbOrderColumns(PDO $pdo): void
     {
         $schema = Config::get('database.database');
@@ -147,6 +153,7 @@ final class SchemaService
         }
     }
 
+    // สร้าง role พื้นฐาน admin/staff/customer หากยังไม่มี
     private static function ensureRoles(PDO $pdo): void
     {
         $roles = ['admin', 'staff', 'customer'];
@@ -161,6 +168,7 @@ final class SchemaService
         }
     }
 
+    // เพิ่มคอลัมน์ ticket_code_prefix และ max_capacity ให้ EVENTS
     private static function ensureEventsColumns(PDO $pdo): void
     {
         $columnExists = $pdo->prepare(
@@ -185,6 +193,7 @@ final class SchemaService
         }
     }
 
+    // สร้างตาราง TICKET_CODE สำหรับเก็บโค้ดบัตรถ้ายังไม่มี
     private static function ensureTicketCodeTable(PDO $pdo): void
     {
         $schema = Config::get('database.database');
@@ -212,6 +221,7 @@ final class SchemaService
         }
     }
 
+    // เพิ่มคอลัมน์ description ให้ MENU_ITEM
     private static function ensureMenuColumns(PDO $pdo): void
     {
         $schema = Config::get('database.database');
@@ -235,6 +245,7 @@ final class SchemaService
         }
     }
 
+    // เพิ่มคอลัมน์/constraint/index ที่ใช้รองรับการจับจองโต๊ะ
     private static function ensureReservationSupport(PDO $pdo): void
     {
         $schema = Config::get('database.database');
@@ -322,6 +333,7 @@ final class SchemaService
         }
     }
 
+    // เติมข้อมูลเริ่มต้น เช่น admin/table/menu
     private static function seedDefaultData(PDO $pdo): void
     {
         self::seedAdmin($pdo);
@@ -329,6 +341,7 @@ final class SchemaService
         self::seedMenu($pdo);
     }
 
+    // ถ้ายังไม่มี admin ให้สร้างพร้อมผูก role
     private static function seedAdmin(PDO $pdo): void
     {
         $pdo->beginTransaction();
@@ -367,6 +380,7 @@ final class SchemaService
         $pdo->commit();
     }
 
+    // default table data
     private static function seedTables(PDO $pdo): void
     {
         $tables = [
@@ -418,6 +432,7 @@ final class SchemaService
         }
     }
 
+    // default menu data
     private static function seedMenu(PDO $pdo): void
     {
         $count = (int)$pdo->query('SELECT COUNT(*) FROM MENU_ITEM')->fetchColumn();
@@ -472,6 +487,7 @@ final class SchemaService
         }
     }
 
+    // increase query performance by adding indexes on main tables
     private static function ensurePerformanceIndexes(PDO $pdo): void
     {
         $schema = Config::get('database.database');
@@ -499,6 +515,7 @@ final class SchemaService
         }
     }
 
+    // create index if not exists
     private static function ensureIndex(PDO $pdo, string $schema, string $table, string $index, string $sql): void
     {
         $stmt = $pdo->prepare(

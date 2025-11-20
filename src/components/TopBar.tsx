@@ -18,6 +18,7 @@ interface TopBarProps {
 
 type ThemeMode = "light" | "dark";
 
+// เปลี่ยนธีมของเว็บไซต์และบันทึกลง localStorage
 const applyTheme = (mode: ThemeMode) => {
   if (typeof document === "undefined") {
     return;
@@ -31,6 +32,7 @@ const applyTheme = (mode: ThemeMode) => {
   localStorage.setItem("theme", mode);
 };
 
+// ดึงธีมเริ่มต้นจาก localStorage หรือ class บน document
 const getInitialTheme = (): ThemeMode => {
   if (typeof document === "undefined") {
     return "dark";
@@ -44,12 +46,15 @@ const getInitialTheme = (): ThemeMode => {
 
 const TopBar = ({ user, onLogout }: TopBarProps) => {
   const navigate = useNavigate();
+  // theme state ใช้ควบคุมปุ่มสลับโหมดแสง/มืด
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
 
   useEffect(() => {
+    // ทุกครั้งที่ theme เปลี่ยนให้เรียก applyTheme
     applyTheme(theme);
   }, [theme]);
 
+  // สลับธีมระหว่างโหมดมืด/สว่าง
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
@@ -58,8 +63,9 @@ const TopBar = ({ user, onLogout }: TopBarProps) => {
     <header className="sticky top-0 z-50 w-full border-b bg-gradient-primary backdrop-blur-lg">
       <div className="flex h-14 sm:h-16 items-center justify-between px-4 sm:px-6">
         <div className="flex items-center gap-4 sm:gap-8">
-          <button 
-            onClick={() => navigate('/')}
+          {/* ปุ่มไปหน้าแรก */}
+          <button
+            onClick={() => navigate("/")}
             className="text-xl sm:text-2xl font-bold text-white tracking-tight hover:scale-105 transition-smooth"
           >
             HANGOUT
@@ -82,6 +88,7 @@ const TopBar = ({ user, onLogout }: TopBarProps) => {
           </Button>
           {user ? (
             <>
+              {/* เมนูผู้ใช้เมื่อเข้าสู่ระบบ */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -96,7 +103,7 @@ const TopBar = ({ user, onLogout }: TopBarProps) => {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate('/profile')}>
+                  <DropdownMenuItem onClick={() => navigate("/profile")}>
                     <Settings className="h-4 w-4 mr-2" />
                     Edit Profile
                   </DropdownMenuItem>
@@ -113,14 +120,14 @@ const TopBar = ({ user, onLogout }: TopBarProps) => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate('/login')}
+                onClick={() => navigate("/login")}
                 className="text-white hover:bg-white/20 text-xs sm:text-sm"
               >
                 Login
               </Button>
               <Button
                 size="sm"
-                onClick={() => navigate('/register')}
+                onClick={() => navigate("/register")}
                 className="bg-white text-primary hover:bg-white/90 text-xs sm:text-sm"
               >
                 Register

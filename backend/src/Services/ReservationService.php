@@ -12,6 +12,7 @@ final class ReservationService
     private const ACTIVE_STATUSES = ['pending', 'confirmed', 'seated'];
     private const COMPLETED_STATUSES = ['canceled', 'no_show'];
 
+    // สร้างการจองใหม่
     public static function create(array $data): array
     {
         $pdo = Database::connection();
@@ -60,6 +61,7 @@ final class ReservationService
         return self::find((int)$pdo->lastInsertId()) ?? [];
     }
 
+    // รายการการจองพร้อม filter/pagination
     public static function list(array $filters = [], int $page = 1, int $perPage = 25): array
     {
         $perPage = max(1, min(200, $perPage));
@@ -122,6 +124,7 @@ final class ReservationService
         ];
     }
 
+    // เปลี่ยนสถานะการจองและเรียก stored procedure
     public static function updateStatus(int $id, string $status, ?array $actor = null): array
     {
         $allowed = ['pending', 'confirmed', 'seated', 'no_show', 'canceled'];
@@ -169,11 +172,13 @@ final class ReservationService
         return self::find($id) ?? [];
     }
 
+    // ผูกโต๊ะตัวเดียว ตรวจ capacity และ adjacency
     public static function assignTable(int $reservationId, int $tableId, ?array $actor = null, string $nextStatus = 'confirmed'): array
     {
         return self::assignTables($reservationId, [$tableId], $actor, $nextStatus);
     }
 
+    // ผูกโต๊ะหลายตัว ตรวจ capacity และ adjacency
     public static function assignTables(int $reservationId, array $tableIds, ?array $actor = null, string $nextStatus = 'confirmed'): array
     {
         $filtered = array_values(array_unique(array_map('intval', $tableIds)));
@@ -258,6 +263,7 @@ final class ReservationService
         return self::find($reservationId) ?? [];
     }
 
+    // ค้นหาการจองโดย IDพร้อมรายละเอียดโต๊ะที่ผูกไว้
     public static function find(int $id): ?array
     {
         $stmt = Database::connection()->prepare(
@@ -295,6 +301,7 @@ final class ReservationService
         return self::transform($rows[0]);
     }
 
+    // จัดรูปข้อมูล SQL ให้เป็นโครงสร้างที่ frontend ใช้
     private static function transform(array $row): array
     {
         $tablesData = $row['tablesData'] ?? [];
@@ -335,6 +342,7 @@ final class ReservationService
      *
      * @return array<int, array<string, mixed>>
      */
+    // แนบข้อมูลโต๊ะทั้งหมดเข้าไปยังแถวการจอง
     private static function attachTablesToRows(array $rows): array
     {
         if (!$rows) {
@@ -375,6 +383,7 @@ final class ReservationService
         return $rows;
     }
 
+    // กำหนดลำดับโต๊ะเพื่อใช้ตรวจ adjacency
     private static function tableOrderMap(PDO $pdo): array
     {
         $stmt = $pdo->query('SELECT id FROM VENUETABLE ORDER BY table_name ASC');
@@ -508,6 +517,7 @@ final class ReservationService
         $stmt->closeCursor();
     }
 
+    // ตรวจสอบว่าลูกค้ามีการจองยืนยันอยู่ไหม
     public static function userHasConfirmedReservation(int $userId): bool
     {
         $stmt = Database::connection()->prepare(
@@ -521,6 +531,7 @@ final class ReservationService
         return (bool)$stmt->fetchColumn();
     }
 
+    // หาการจองล่าสุดที่ยัง active เพื่อบอกโต๊ะปัจจุบัน
     public static function latestActiveReservation(int $userId): ?array
     {
         $pdo = Database::connection();
@@ -575,6 +586,7 @@ final class ReservationService
         ];
     }
 
+    // ช่วยเรียก list โดยกรองทั้ง user และ event
     public static function reservationsForEvent(int $userId, int $eventId): array
     {
         return self::list([
@@ -583,6 +595,7 @@ final class ReservationService
         ]);
     }
 
+    // หา reservation ที่ผูกกับคำสั่งซื้อบัตร
     public static function findByTicketOrder(int $orderId): ?array
     {
         $stmt = Database::connection()->prepare(
@@ -597,6 +610,7 @@ final class ReservationService
         return self::find((int)$reservationId);
     }
 
+    // ใช้โดย TicketService เพื่ออัปเดตสถานะเป็น seated
     public static function markSeatedByOrder(int $orderId, ?array $actor = null): void
     {
         $stmt = Database::connection()->prepare(
@@ -611,6 +625,7 @@ final class ReservationService
         self::updateStatus((int)$reservationId, 'seated', $actor);
     }
 
+    // ปรับเวลาหมดอายุ hold/placeholder
     public static function touchHoldExpiry(int $reservationId, ?string $expiresAt, bool $isPlaceholder): void
     {
         $stmt = Database::connection()->prepare(
@@ -626,11 +641,13 @@ final class ReservationService
         ]);
     }
 
+    // ล้างโต๊ะที่เคยจับจอง (เผื่อใช้ manual)
     public static function releaseTables(int $reservationId): void
     {
         self::releaseTablesInternal(Database::connection(), $reservationId);
     }
 
+    // Cron ช่วยยกเลิก hold ที่หมดเวลาและสั่ง cancel order
     public static function expireHolds(): int
     {
         $pdo = Database::connection();
@@ -661,6 +678,7 @@ final class ReservationService
         return count($expired);
     }
 
+    // เมื่อคำสั่งซื้อถูกยกเลิกให้ยกเลิกการจองด้วย
     public static function cancelByOrder(int $orderId): void
     {
         $stmt = Database::connection()->prepare(
@@ -682,6 +700,7 @@ final class ReservationService
     /**
      * @return array{0:string,1:array<string, mixed>}
      */
+    // ประกอบ WHERE clause และ parameter สำหรับ query list
     private static function buildFilterClause(array $filters): array
     {
         $conditions = [];
@@ -742,6 +761,7 @@ final class ReservationService
         }
     }
 
+    // นับจำนวนทั้งหมดตามตัวกรองเพื่อใช้ paginated meta
     private static function countReservations(string $whereClause, array $params): int
     {
         $stmt = Database::connection()->prepare(
@@ -759,6 +779,7 @@ final class ReservationService
     /**
      * @return array<string, int|float>
      */
+    // รวมจำนวนแต่ละสถานะและจำนวนแขก
     private static function statusTotals(string $whereClause, array $params): array
     {
         $stmt = Database::connection()->prepare(
@@ -795,6 +816,7 @@ final class ReservationService
         return $defaults;
     }
 
+    // สร้างตาราง pivot ถ้ายังไม่มีเพื่อรองรับหลายโต๊ะต่อหนึ่งการจอง
     private static function ensurePivotTable(PDO $pdo): void
     {
         static $isEnsured = false;
@@ -819,6 +841,7 @@ final class ReservationService
         $isEnsured = true;
     }
 
+    // เมื่อตรวจสอบแล้วให้เอา flag placeholder/hold ออก
     private static function clearHoldMeta(PDO $pdo, int $reservationId): void
     {
         $stmt = $pdo->prepare(
@@ -830,6 +853,7 @@ final class ReservationService
         $stmt->execute(['id' => $reservationId]);
     }
 
+    // ลบข้อมูล pivot และ reset assigned_table_id
     private static function releaseTablesInternal(PDO $pdo, int $reservationId): void
     {
         $pdo->prepare('DELETE FROM TABLE_RESERVATION_TABLE WHERE reservation_id = :id')

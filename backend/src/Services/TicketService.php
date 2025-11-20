@@ -10,6 +10,8 @@ use RuntimeException;
 final class TicketService
 {
     private const HOLD_MINUTES = 30;
+
+    // สร้างคำสั่งซื้อบัตรพร้อมโค้ดและการจองโต๊ะ
     public static function createOrder(array $data): array
     {
         $pdo = Database::connection();
@@ -101,6 +103,7 @@ final class TicketService
         ];
     }
 
+    // ดึงรายการสั่งซื้อพร้อมตัวกรองและการแบ่งหน้า
     public static function list(array $filters = [], int $page = 1, int $perPage = 25): array
     {
         $perPage = max(1, min(200, $perPage));
@@ -157,6 +160,7 @@ final class TicketService
         ];
     }
 
+    // อัปเดตสถานะ order และถ้า cancel ให้ยกเลิกจองโต๊ะด้วย
     public static function updateStatus(int $orderId, string $status): array
     {
         $allowed = ['pending', 'confirmed', 'cancelled'];
@@ -193,6 +197,7 @@ final class TicketService
         return self::find($orderId) ?? [];
     }
 
+    // ยืนยันตั๋วทีละใบและบันทึกการ Check-in
     public static function confirmTicket(int $orderId, string $code, ?array $actor = null, ?string $note = null): array
     {
         $pdo = Database::connection();
@@ -250,6 +255,7 @@ final class TicketService
         return self::find($orderId) ?? [];
     }
 
+    // ยืนยันโค้ดทั้งหมดในคำสั่งซื้อเดียว
     public static function confirmAll(int $orderId, ?array $actor = null, ?string $note = null): array
     {
         $pdo = Database::connection();
@@ -310,6 +316,7 @@ final class TicketService
         return self::find($orderId) ?? [];
     }
 
+    // สร้างหรืออัปเดตแถว CHECK_IN ให้เก็บข้อมูลพนักงาน/ลูกค้า
     private static function recordCheckIn(PDO $pdo, array $data): void
     {
         $existsStmt = $pdo->prepare('SELECT id FROM CHECK_IN WHERE ticket_code_id = :ticket_code_id LIMIT 1');
@@ -392,6 +399,7 @@ final class TicketService
         ]);
     }
 
+    // ดึงคำสั่งซื้อเดียวตาม id
     public static function find(int $orderId): ?array
     {
         $pdo = Database::connection();
@@ -425,6 +433,7 @@ final class TicketService
         return self::transformOrder($row);
     }
 
+    // สร้างรหัสตั๋วลำดับถัดไปตาม prefix
     private static function generateCodes(string $prefix, int $orderItemId, int $quantity): array
     {
         $pdo = Database::connection();
@@ -450,6 +459,7 @@ final class TicketService
         return $codes;
     }
 
+    // ตรวจและสร้างการจองโต๊ะจากข้อมูล checkout
     private static function processReservationSelection(PDO $pdo, array $context, array $event): void
     {
         $payload = $context['reservation'] ?? null;
@@ -462,6 +472,7 @@ final class TicketService
         self::createReservationWithTables($pdo, $payload, $context, $holdExpiresAt, $event);
     }
 
+    // เปิด reservation พร้อมผูกโต๊ะหลายตัว
     private static function createReservationWithTables(
         PDO $pdo,
         array $payload,

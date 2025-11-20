@@ -18,6 +18,7 @@ type UserItem = {
 };
 
 const AdminUsers = () => {
+  // ลิสuser + ช่องการค้นหา + update role ของ user
   const [users, setUsers] = useState<UserItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
@@ -52,6 +53,7 @@ const AdminUsers = () => {
     return () => controller.abort();
   }, []);
 
+  // update role ของ user
   const updateUserRole = async (userId: number, newRole: string) => {
     setUpdatingId(userId);
     try {

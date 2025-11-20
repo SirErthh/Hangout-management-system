@@ -10,6 +10,7 @@ use RuntimeException;
 
 final class EventService
 {
+    // ดึงรายการ event ทั้งหมดหรือเฉพาะที่ active
     public static function all(bool $onlyActive = false): array
     {
         $sql = 'SELECT id, title, artist, status, cover_img, description, ticket_price, starts_at, ends_at, ticket_code_prefix, max_capacity
@@ -27,6 +28,7 @@ final class EventService
         return array_map(static fn(array $event) => self::transform($event), $events);
     }
 
+    // หา event ตาม id เดียว
     public static function find(int $id): ?array
     {
         $stmt = Database::connection()->prepare(
@@ -41,6 +43,7 @@ final class EventService
         return $event ? self::transform($event) : null;
     }
 
+    // สร้างอีเวนต์ใหม่พร้อมตั้งค่า prefix/capacity
     public static function create(array $data): array
     {
         $pdo = Database::connection();
@@ -71,6 +74,7 @@ final class EventService
         return self::find($id) ?? [];
     }
 
+    // update ข้อมูลอีเวนต์ที่มีอยู่
     public static function update(int $id, array $data): array
     {
         $pdo = Database::connection();
@@ -110,6 +114,7 @@ final class EventService
         return self::find($id) ?? [];
     }
 
+    // delete อีเวนต์และข้อมูลที่เชื่อมโยง (reservation/order)
     public static function delete(int $id): void
     {
         $pdo = Database::connection();
@@ -150,6 +155,7 @@ final class EventService
         }
     }
 
+    // อัปเดตสถานะ event โดยตรวจ list ที่อนุญาต
     public static function updateStatus(int $id, string $status): array
     {
         $allowed = ['draft', 'published', 'ended', 'canceled'];
@@ -171,6 +177,7 @@ final class EventService
         return self::find($id) ?? [];
     }
 
+    // ปรับฟิลด์ฐานข้อมูลเป็นรูปแบบที่ UI ใช้
     private static function transform(array $row): array
     {
         $startsAt = $row['starts_at'] ? (new DateTimeImmutable($row['starts_at'])) : null;
@@ -194,6 +201,7 @@ final class EventService
     /**
      * @return array<int>
      */
+    // utility คืน list id จาก query
     private static function fetchIds(PDO $pdo, string $sql, array $params = []): array
     {
         $stmt = $pdo->prepare($sql);
@@ -201,6 +209,7 @@ final class EventService
         return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     }
 
+    // ลบ pivot โต๊ะ-การจองของ event
     private static function deleteReservationTables(PDO $pdo, array $reservationIds): void
     {
         if (empty($reservationIds)) {
@@ -238,6 +247,7 @@ final class EventService
         $stmt->execute($reservationIds);
     }
 
+    // ลบ order เปล่าที่ไม่มีรายการเหลือแล้ว
     private static function deleteOrdersWithoutItems(PDO $pdo, array $orderIds, string $orderTable, string $itemTable): void
     {
         if (empty($orderIds)) {

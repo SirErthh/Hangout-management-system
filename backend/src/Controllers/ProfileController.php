@@ -10,6 +10,7 @@ use RuntimeException;
 
 final class ProfileController
 {
+    // user update read ข้อมูลตัวเอง
     public function update(Request $request): array
     {
         $user = $request->user();
@@ -29,6 +30,7 @@ final class ProfileController
         return ['user' => $updated];
     }
 
+    // delete account ตัวเอง
     public function destroy(Request $request): array
     {
         $user = $request->user();

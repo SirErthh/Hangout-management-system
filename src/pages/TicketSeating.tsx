@@ -18,13 +18,16 @@ type TableOption = {
 };
 
 const TicketSeating = () => {
+  // อ่านค่า event id จาก URL
   const { id } = useParams();
   const eventId = Number(id);
+  // ดึง order/event ที่ส่งมาจากหน้าก่อน
   const location = useLocation();
   const navigate = useNavigate();
   const order = location.state?.order;
   const seededEvent = location.state?.event;
 
+  // เก็บสถานะหน้าจอและข้อมูลที่โหลดมา
   const [event, setEvent] = useState<any>(seededEvent ?? null);
   const [loading, setLoading] = useState(true);
   const [tables, setTables] = useState<TableOption[]>([]);
@@ -32,12 +35,14 @@ const TicketSeating = () => {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // หากไม่มี order ให้ย้อนกลับไปหน้า events
   useEffect(() => {
     if (!order) {
       navigate("/events", { replace: true });
     }
   }, [order, navigate]);
 
+  // โหลดข้อมูลอีเวนต์และโต๊ะที่เหลือสำหรับ event นี้
   useEffect(() => {
     if (!eventId || !order) {
       return;
@@ -65,14 +70,17 @@ const TicketSeating = () => {
     return () => controller.abort();
   }, [eventId, order]);
 
+  // ตารางที่เลือกพร้อมรายละเอียดเต็ม
   const selectedTablesInfo = useMemo(
     () => tables.filter((table) => selectedTables.includes(table.id)),
     [tables, selectedTables],
   );
 
+  // ความจุรวมของโต๊ะที่เลือกไว้
   const selectedCapacity = selectedTablesInfo.reduce((sum, table) => sum + table.capacity, 0);
   const capacityOk = selectedCapacity >= (order?.quantity ?? 0);
 
+  // เตือนเวลาเข้าร่วมก่อนงาน 2 ชั่วโมง
   const arrivalReminder = useMemo(() => {
     const startsAt = event?.starts_at ?? order?.startsAt ?? order?.starts_at;
     if (!startsAt) {
@@ -86,6 +94,7 @@ const TicketSeating = () => {
     return reminderTime.toLocaleString();
   }, [event, order]);
 
+  // สลับสถานะเลือก/ไม่เลือกโต๊ะ พร้อมกันเลือกโต๊ะใหญ่เกินไป
   const toggleTableSelection = (tableId: number) => {
     const table = tables.find((t) => t.id === tableId);
     const partySize = order?.quantity ?? 0;
@@ -123,6 +132,7 @@ const TicketSeating = () => {
     });
   };
 
+  // ตรวจสอบก่อนกดไปหน้าถัดไป
   const handleContinue = () => {
     if (!order) return;
     if (selectedTables.length === 0) {

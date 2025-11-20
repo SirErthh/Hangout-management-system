@@ -10,6 +10,7 @@ use PDOException;
 
 final class Database
 {
+    // เก็บ PDO เชื่อมต่อเดียวให้ทั้งระบบใช้ร่วมกัน
     private static ?PDO $connection = null;
 
     public static function connection(): PDO
@@ -18,6 +19,7 @@ final class Database
             return self::$connection;
         }
 
+        // โหลดค่าคอนฟิกฐานข้อมูลจาก Config
         $config = Config::get('database');
 
         $dsn = sprintf(
@@ -35,6 +37,7 @@ final class Database
             $config['options']
         );
 
+        // คืน connection ที่สร้างแล้ว
         return self::$connection;
     }
 }

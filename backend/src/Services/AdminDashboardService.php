@@ -6,6 +6,7 @@ namespace App\Services;
 
 final class AdminDashboardService
 {
+    // ดึงข้อมูลสรุปสำหรับแอดมิน dashboard
     public static function summary(): array
     {
         $pdo = Database::connection();

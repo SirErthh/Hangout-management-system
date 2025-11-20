@@ -39,6 +39,7 @@ type MenuItem = {
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 
 const MenuManagement = () => {
+  // รายการเมนู + สถานะฟอร์มสร้าง/แก้ไข
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -56,6 +57,7 @@ const MenuManagement = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MenuItem | null>(null);
 
+  // ดึงเมนูจาก API
   const loadMenuItems = useCallback(
     async (signal?: AbortSignal) => {
       setLoading(true);
@@ -88,6 +90,7 @@ const MenuManagement = () => {
     window.dispatchEvent(new Event("menu-updated"));
   };
 
+  // เคลียร์ฟอร์มก่อนใช้งาน
   const resetForm = () => {
     setFormData({
       name: "",
@@ -105,6 +108,7 @@ const MenuManagement = () => {
     setDialogOpen(true);
   };
 
+  // เปิด dialog โหมดแก้ไข
   const handleEdit = (item: MenuItem) => {
     setEditingItem(item);
     setFormData({
@@ -132,6 +136,7 @@ const MenuManagement = () => {
     return "";
   };
 
+  // อัปโหลดรูปเมนู
   const handleFileChange = (file?: File) => {
     if (uploadingImage) {
       toast.error("Please wait for the current upload to finish");

@@ -13,7 +13,9 @@ interface RegisterProps {
 }
 
 const Register = ({ onRegister }: RegisterProps) => {
+  // สลับหน้า
   const navigate = useNavigate();
+  // เก็บข้อมูลฟอร์ม
   const [formData, setFormData] = useState({
     fname: "",
     lname: "",
@@ -21,8 +23,10 @@ const Register = ({ onRegister }: RegisterProps) => {
     phone: "",
     password: "",
   });
+  // ปิดปุ่มขณะส่งข้อมูล
   const [submitting, setSubmitting] = useState(false);
 
+  // ยืนยันการสมัคร
   const handleRegister = async () => {
     const trimmed = {
       fname: formData.fname.trim(),
@@ -123,8 +127,8 @@ const Register = ({ onRegister }: RegisterProps) => {
           <div className="bg-muted p-3 rounded-lg text-sm text-muted-foreground">
             Default role after registration: <span className="font-semibold text-foreground">Customer</span>
           </div>
-          <Button 
-            className="w-full bg-gradient-primary hover:opacity-90" 
+          <Button
+            className="w-full bg-gradient-primary hover:opacity-90"
             onClick={handleRegister}
             disabled={submitting}
           >

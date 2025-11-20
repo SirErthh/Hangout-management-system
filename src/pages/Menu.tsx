@@ -21,13 +21,16 @@ type MenuItem = {
 
 const Menu = () => {
   const navigate = useNavigate();
+  // ตะกร้าสินค้า
   const [cart, setCart] = useState<Record<number, number>>({});
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  // สถานะการโหลดเมนู + ตรวจเช็ค
   const [loading, setLoading] = useState(true);
   const [checkingReservation, setCheckingReservation] = useState(true);
   const [hasConfirmedReservation, setHasConfirmedReservation] = useState(false);
   const [reservationError, setReservationError] = useState<string | null>(null);
 
+  // โหลดรายการเมนูและอัปเดตตะกร้า
   const fetchMenu = useCallback(async (signal?: AbortSignal) => {
     if (!signal) {
       setLoading(true);
@@ -59,6 +62,7 @@ const Menu = () => {
     }
   }, []);
 
+  // โหลดเมนูตอนเริ่มหน้า
   useEffect(() => {
     const controller = new AbortController();
 
@@ -67,6 +71,7 @@ const Menu = () => {
     return () => controller.abort();
   }, [fetchMenu]);
 
+  // รีเฟรชเมนูเมื่อมีการอัปเดตจากภายนอก
   useEffect(() => {
     const handleRefresh = () => {
       fetchMenu();
@@ -75,6 +80,7 @@ const Menu = () => {
     return () => window.removeEventListener("menu-updated", handleRefresh);
   }, [fetchMenu]);
 
+  // เช็คสถานะการจองโต๊ะของลูกค้า
   const loadReservationStatus = useCallback(
     async (signal?: AbortSignal) => {
       try {
@@ -129,6 +135,7 @@ const Menu = () => {
   const reservationBlocked =
     checkingReservation || !!reservationError || !hasConfirmedReservation;
 
+  // อัปเดตตะกร้าสินค้า
   const updateCart = (itemId: number, delta: number) => {
     if (reservationBlocked) {
       if (checkingReservation) {
@@ -158,6 +165,7 @@ const Menu = () => {
       return sum + (item?.price || 0) * qty;
     }, 0);
 
+  // กดไปหน้า confirm เมนู
   const handleCheckout = () => {
     if (getTotalItems() === 0) {
       toast.error("Your cart is empty");
@@ -194,6 +202,7 @@ const Menu = () => {
     });
   };
 
+  // สร้างการ์ดเมนู
   const renderCard = (item: MenuItem) => {
     const qty = cart[item.id] || 0;
     const image = item.image_url;

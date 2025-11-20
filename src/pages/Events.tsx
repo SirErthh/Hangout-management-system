@@ -22,10 +22,12 @@ type EventItem = {
 
 const Events = () => {
   const navigate = useNavigate();
+  // สถานะอีเวนต์และปริมาณตั๋ว
   const [events, setEvents] = useState<EventItem[]>([]);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
 
+  // โหลดอีเวนต์ที่ยัง active
   const fetchEvents = useCallback(
     async (signal?: AbortSignal) => {
       setLoading(true);
@@ -59,12 +61,14 @@ const Events = () => {
     [],
   );
 
+  // โหลดอีเวนต์ตอนเริ่มหน้า
   useEffect(() => {
     const controller = new AbortController();
     fetchEvents(controller.signal);
     return () => controller.abort();
   }, [fetchEvents]);
 
+  // รีเฟรชอีเวนต์เมื่อมีการแจ้งเตือน
   useEffect(() => {
     const handleRefresh = () => {
       fetchEvents();
@@ -80,6 +84,7 @@ const Events = () => {
     }));
   };
 
+  // สร้าง order และไปหน้าเลือกโต๊ะ
   const handleConfirmOrder = (event: EventItem) => {
     const qty = quantities[event.id] || 1;
     navigate(`/events/${event.id}/seating`, {
@@ -156,6 +161,7 @@ const Events = () => {
     );
   };
 
+  // แสดงรายละเอียดอีเวนต์
   const renderEventCard = (event: EventItem) => {
     const qty = quantities[event.id] || 1;
     const eventDate = formatEventDate(event.date);

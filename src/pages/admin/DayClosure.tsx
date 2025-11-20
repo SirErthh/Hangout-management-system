@@ -37,6 +37,7 @@ type ClosureRecord = {
 };
 
 const DayClosure = () => {
+  // สถานะต่าง ๆ ของการปิดวันและสรุปยอด
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
@@ -50,6 +51,7 @@ const DayClosure = () => {
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [pendingStartDate, setPendingStartDate] = useState<string | null>(null);
 
+  // โหลดข้อมูลสรุป/สถานะล่าสุด
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -78,6 +80,7 @@ const DayClosure = () => {
     load();
   }, [load]);
 
+  // ปิดวันและบันทึกข้อมูล
   const handleClosureSubmit = async () => {
     setIsSubmitting(true);
     try {
@@ -107,6 +110,7 @@ const DayClosure = () => {
     }
   };
 
+  // เปิดวันใหม่ (สำหรับวันถัดไปหรือย้อนหลัง)
   const handleStartDay = async (dateOverride?: string) => {
     const date = dateOverride ?? summaryDate;
     setIsStarting(true);

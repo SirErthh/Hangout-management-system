@@ -11,6 +11,7 @@ use RuntimeException;
 
 final class AuthMiddleware
 {
+    // ตรวจสอบ token จาก header แล้วดึงข้อมูลผู้ใช้ถ้าไม่ผ่านจะโยน error
     public static function handle(Request $request): array
     {
         $token = $request->bearerToken();

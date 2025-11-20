@@ -22,12 +22,14 @@ const EventDetails = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const location = useLocation();
+  // เก็บข้อมูลอีเวนต์และจำนวนตั๋วที่จะซื้อ
   const [event, setEvent] = useState<EventItem | null>(
     (location.state as { event?: EventItem } | null)?.event ?? null,
   );
   const [loading, setLoading] = useState(!event);
   const [quantity, setQuantity] = useState(1);
 
+  // โหลดข้อมูลอีเวนต์ถ้ายังไม่มีโดยใช้ api
   useEffect(() => {
     if (event || !id) {
       return;
@@ -52,6 +54,7 @@ const EventDetails = () => {
     return () => controller.abort();
   }, [event, id]);
 
+  // ไปหน้าคอนเฟิร์มคำสั่งซื้อ
   const handleOrder = () => {
     if (!event) return;
     navigate("/confirm-order", {

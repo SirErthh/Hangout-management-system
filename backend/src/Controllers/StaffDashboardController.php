@@ -10,6 +10,7 @@ use RuntimeException;
 
 final class StaffDashboardController
 {
+    // สรุปข้อมูลแดชบอร์ดสำหรับสตาฟ
     public function summary(Request $request): array
     {
         $this->ensureStaff($request);

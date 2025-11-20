@@ -8,6 +8,7 @@ import { api, handleApiError } from "@/lib/api";
 
 const StaffDashboard = () => {
   const navigate = useNavigate();
+  // เก็บตัวเลขสรุปที่โชว์บน dashboard
   const [metrics, setMetrics] = useState({
     ticketsToday: 0,
     reservationsToday: 0,
@@ -17,6 +18,7 @@ const StaffDashboard = () => {
   const [loadingMetrics, setLoadingMetrics] = useState(true);
   const [metricsError, setMetricsError] = useState<string | null>(null);
 
+  // โหลดข้อมูลสถิติจาก API
   useEffect(() => {
     let mounted = true;
     const loadMetrics = async () => {

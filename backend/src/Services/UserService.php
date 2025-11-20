@@ -9,6 +9,7 @@ use RuntimeException;
 
 final class UserService
 {
+    // คืนข้อมูลผู้ใช้ตามอีเมล
     public static function findByEmail(string $email): ?array
     {
         $stmt = Database::connection()->prepare(
@@ -25,6 +26,7 @@ final class UserService
         return $row ?: null;
     }
 
+    // คืนข้อมูลผู้ใช้ตาม ID
     public static function findById(int $id): ?array
     {
         $stmt = Database::connection()->prepare(
@@ -41,6 +43,7 @@ final class UserService
         return $row ?: null;
     }
 
+    // register ผู้ใช้ใหม่พร้อมผูก role เริ่มต้น
     public static function create(array $data, string $roleName = 'customer'): array
     {
         $pdo = Database::connection();
@@ -78,6 +81,7 @@ final class UserService
         return self::findById($userId) ?? [];
     }
 
+    // change user role by removing old and adding new
     public static function assignRole(int $userId, string $roleName): void
     {
         $pdo = Database::connection();
@@ -111,6 +115,7 @@ final class UserService
         ]);
     }
 
+    // list user for admin management
     public static function all(): array
     {
         $stmt = Database::connection()->query(
@@ -124,6 +129,7 @@ final class UserService
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // update user profile and check email uniqueness
     public static function update(int $userId, array $data): array
     {
         $current = self::findById($userId);
@@ -171,6 +177,7 @@ final class UserService
         return self::findById($userId) ?? [];
     }
 
+    // ลบบัญชีผู้ใช้รวมถึง mapping กับ roles
     public static function delete(int $userId): void
     {
         $pdo = Database::connection();

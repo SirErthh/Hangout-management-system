@@ -55,6 +55,7 @@ const DATE_RANGE_OPTIONS = [
 ];
 
 const StaffFnB = () => {
+  // เก็บ F&B orders และ filter ต่างๆ
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
@@ -75,6 +76,7 @@ const StaffFnB = () => {
   const startItem = totalOrders === 0 ? 0 : (page - 1) * perPage + 1;
   const endItem = totalOrders === 0 ? 0 : Math.min(page * perPage, totalOrders);
 
+  // โหลดข้อมูลคำสั่งซื้ออาหาร/เครื่องดื่ม
   const loadOrders = useCallback(async (pageToLoad: number, signal?: AbortSignal) => {
     setLoading(true);
     try {
@@ -120,6 +122,7 @@ const StaffFnB = () => {
     }
   }, [view, daysBack]);
 
+  // โหลดคำสั่งซื้อเมื่อเปลี่ยนหน้า, filter
   useEffect(() => {
     const controller = new AbortController();
     loadOrders(page, controller.signal);
@@ -132,6 +135,7 @@ const StaffFnB = () => {
     return () => window.removeEventListener("day-closure-updated", handler);
   }, [loadOrders, page]);
 
+  // เปลี่ยนสถานะ order
   const updateOrderStatus = async (orderId: number, newStatus: Order["status"]) => {
     setUpdatingId(orderId);
     try {

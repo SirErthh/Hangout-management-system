@@ -6,6 +6,7 @@ namespace App\Support;
 
 final class Response
 {
+    // ส่งข้อมูลเป็น JSON พร้อมตั้ง header/status ให้เรียบร้อย
     public function json(mixed $data, int $status = 200, array $headers = []): void
     {
         http_response_code($status);

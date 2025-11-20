@@ -11,6 +11,7 @@ use RuntimeException;
 
 final class AuthController
 {
+    // register สมาชิกใหม่และคืน token
     public function register(Request $request): array
     {
         $payload = $request->all();
@@ -53,6 +54,7 @@ final class AuthController
         ];
     }
 
+    // ล็อกอินด้วย email และรหัสผ่านและออก token
     public function login(Request $request): array
     {
         $payload = $request->all();
@@ -90,6 +92,7 @@ final class AuthController
         ];
     }
 
+    // Endpoint เช็ค session ปัจจุบัน
     public function me(Request $request): array
     {
         $user = $request->user();

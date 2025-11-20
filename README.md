@@ -49,3 +49,18 @@ This project is built with:
 - React
 - shadcn-ui
 - Tailwind CSS
+
+## Recent Git Commits
+
+The latest history from `git log --oneline -n 10`:
+
+- `048fdf0` final project hangout
+- `7236072` fix slow load page and dashboard extended
+- `563c61b` fix ticket table
+- `59374ee` Create 7edd753a43be2de9.png
+- `1779c5f` final wait for demo
+- `6edd99d` 10m row
+- `838c1e5` fix page navigate
+- `04a7ab6` fix ui and ticket order
+- `1bc094e` add darkmode fix some ui
+- `24c8330` final except 10m row and some ui improvement

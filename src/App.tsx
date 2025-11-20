@@ -33,13 +33,17 @@ import StaffFnB from "./pages/staff/FnB";
 import NotFound from "./pages/NotFound";
 import EventDetails from "./pages/EventDetails";
 
+// สร้าง QueryClient ร่วมกันทั้งแอป
 const queryClient = new QueryClient();
 
 const App = () => {
+  // เก็บข้อมูลผู้ใช้ปัจจุบันจาก localStorage ถ้ามี
   const [currentUser, setCurrentUser] = useState<any>(authStorage.getUser());
+  // ใช้ flag ระบุว่ากำลังเช็ก session อยู่หรือไม่
   const [isBootstrapping, setIsBootstrapping] = useState(true);
 
   useEffect(() => {
+    // ดึง session จาก token เพื่อให้รู้ว่าผู้ใช้ยังล็อกอินอยู่ไหม
     const bootstrap = async () => {
       const token = authStorage.getToken();
       if (!token) {
@@ -64,12 +68,14 @@ const App = () => {
     bootstrap();
   }, []);
 
+  // หลังล็อกอินให้บันทึก token และผู้ใช้
   const handleLogin = (payload: { token: string; user: any }) => {
     authStorage.setToken(payload.token);
     authStorage.setUser(payload.user);
     setCurrentUser(payload.user);
   };
 
+  // ออกจากระบบแล้วลบข้อมูล auth ทั้งหมด
   const handleLogout = () => {
     authStorage.clearAll();
     setCurrentUser(null);
@@ -82,11 +88,14 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <div className="min-h-screen w-full bg-background">
+            {/* TopBar แสดงทุกหน้า */}
             <TopBar user={currentUser} onLogout={handleLogout} />
             <div className="flex w-full">
+              {/* แสดง Sidebar เฉพาะเมื่อมีผู้ใช้ */}
               {currentUser && <Sidebar role={currentUser.role} />}
               <main className="flex-1">
                 <Routes>
+                  {/* เส้นทางสาธารณะ */}
                   <Route path="/" element={<Landing />} />
                   <Route
                     path="/login"
@@ -106,7 +115,6 @@ const App = () => {
                       )
                     } 
                   />
-                  
                   {/* Customer Routes */}
                   <Route 
                     path="/customer" 

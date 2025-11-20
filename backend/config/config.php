@@ -1,12 +1,14 @@
 <?php
 
 return [
+    // config ค่าทั่วไปของแอป เช่น URL/ชื่อ/โหมด debug
     'app' => [
         'name' => 'Hangout Management API',
         'env' => getenv('APP_ENV') ?: 'development',
         'debug' => filter_var(getenv('APP_DEBUG') ?: true, FILTER_VALIDATE_BOOLEAN),
         'url' => getenv('APP_URL') ?: 'http://localhost:8000',
     ],
+    // database MySQL configuration
     'database' => [
         'host' => getenv('DB_HOST') ?: '127.0.0.1',
         'port' => (int)(getenv('DB_PORT') ?: 8889),
@@ -19,6 +21,7 @@ return [
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         ],
     ],
+    // authentication settings to issue JWT tokens
     'auth' => [
         'token_secret' => getenv('APP_KEY') ?: 'replace-this-with-a-random-secret',
         'token_ttl_minutes' => (int)(getenv('TOKEN_TTL') ?: 720),

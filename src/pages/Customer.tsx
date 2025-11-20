@@ -6,6 +6,7 @@ import { Calendar, BookOpen, UtensilsCrossed, ShoppingBag } from "lucide-react";
 const Customer = () => {
   const navigate = useNavigate();
 
+  // ปุดลัดฟีเจอร์หลัก
   const features = [
     {
       icon: ShoppingBag,

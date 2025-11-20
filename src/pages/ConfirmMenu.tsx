@@ -23,6 +23,7 @@ const ConfirmMenu = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
+  // โหลดข้อมูล cart จาก state ที่ส่งมาถ้าไม่มีให้ย้อนกลับ
   useEffect(() => {
     if (location.state?.cart) {
       const enriched = (location.state.cart as CartItem[]).map((item) => ({
@@ -39,6 +40,7 @@ const ConfirmMenu = () => {
     return cartItems.reduce((sum, item) => sum + ((item.price ?? 0) * item.quantity), 0);
   };
 
+  // อัปเดต remark แต่ละเมนู
   const handleRemarkChange = (index: number, value: string) => {
     setCartItems((prev) =>
       prev.map((item, idx) =>
@@ -52,6 +54,7 @@ const ConfirmMenu = () => {
     );
   };
 
+  // ส่งคำสั่งซื้อ F&B
   const handleConfirm = async () => {
     if (cartItems.length === 0) {
       toast.error("Your cart is empty");

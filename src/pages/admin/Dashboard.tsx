@@ -8,6 +8,7 @@ import { api, handleApiError } from "@/lib/api";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  // เก็บตัวเลขสรุปสำหรับแสดงบนแดชบอร์ด
   const [metrics, setMetrics] = useState({
     totalUsers: 0,
     activeEvents: 0,

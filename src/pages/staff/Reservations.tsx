@@ -59,6 +59,7 @@ const DATE_RANGE_OPTIONS = [
 
 const StaffReservations = () => {
   const navigate = useNavigate();
+  // เก็บรายการจอง โต๊ะทั้งหมด และตัวช่วยกรอง/pagination
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [tables, setTables] = useState<TableRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,6 +75,7 @@ const StaffReservations = () => {
   });
   const [stats, setStats] = useState(DEFAULT_STATS);
 
+  // ดึงข้อมูลจองพร้อมโต๊ะ
   const fetchReservations = useCallback(
     async (pageToLoad: number, signal?: AbortSignal) => {
       setLoading(true);
@@ -143,6 +145,7 @@ const StaffReservations = () => {
     setReservations((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
   };
 
+  // อัปเดตสถานะการจอง
   const handleStatusUpdate = async (reservationId: number, status: string) => {
     setUpdatingId(reservationId);
     try {

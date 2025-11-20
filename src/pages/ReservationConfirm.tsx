@@ -14,13 +14,16 @@ type ReservationState = {
 };
 
 const ReservationConfirm = () => {
+  // ใช้เปลี่ยนหน้า / อ่าน state จากหน้าก่อน
   const navigate = useNavigate();
   const location = useLocation();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const state = (location.state ?? {}) as ReservationState;
 
+  // ตรวจว่าข้อมูลที่ส่งมาครบหรือไม่
   const isPayloadValid = Boolean(state.date && state.partySize && state.partySize > 0);
 
+  // ถ้าข้อมูลไม่ครบให้ย้อนกลับไปหน้า reserve
   useEffect(() => {
     if (!isPayloadValid) {
       navigate("/reserve", { replace: true });
@@ -29,6 +32,7 @@ const ReservationConfirm = () => {
 
   const currentUser = authStorage.getUser();
 
+  // แปลงวันที่ให้อ่านง่าย ถ้าแปลงไม่ได้ให้แสดง "-"
   const formattedDate = useMemo(() => {
     if (!state.date) {
       return "-";
@@ -40,6 +44,7 @@ const ReservationConfirm = () => {
     }
   }, [state.date]);
 
+  // ฟังก์ชันตอนกดยืนยันการจอง
   const handleConfirm = async () => {
     if (!isPayloadValid || !state.date || !state.partySize) {
       toast.error("Missing reservation details. Please try again.");

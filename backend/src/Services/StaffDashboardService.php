@@ -6,6 +6,7 @@ namespace App\Services;
 
 final class StaffDashboardService
 {
+    // คืนสรุปข้อมูลสำคัญสำหรับแดชบอร์ด staff
     public static function summary(?string $date = null): array
     {
         $pdo = Database::connection();

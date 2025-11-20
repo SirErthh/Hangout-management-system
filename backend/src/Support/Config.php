@@ -6,6 +6,7 @@ namespace App\Support;
 
 final class Config
 {
+    // เก็บค่าคอนฟิกทั้งหมดแบบ static
     private static array $items = [];
 
     public static function set(array $config): void
@@ -15,6 +16,7 @@ final class Config
 
     public static function get(string $key, mixed $default = null): mixed
     {
+        // ดึงค่าคอนฟิกแบบ nested เช่น 'database.host'
         $segments = explode('.', $key);
         $value = self::$items;
 

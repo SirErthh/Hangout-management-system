@@ -12,11 +12,13 @@ use RuntimeException;
 
 final class MenuController
 {
+    // ลิสต์เมนูทั้งหมด
     public function index(): array
     {
         return ['items' => MenuService::all()];
     }
 
+    // แอดมินเพิ่มเมนู
     public function store(Request $request): array
     {
         $this->ensureManager($request);
@@ -25,6 +27,7 @@ final class MenuController
         return ['item' => $item];
     }
 
+    // แก้ไขข้อมูลเมนูเดิม
     public function update(Request $request): array
     {
         $this->ensureManager($request);
@@ -42,6 +45,7 @@ final class MenuController
         return ['message' => 'Menu item deleted'];
     }
 
+    // ลูกค้าสั่งอาหาร ต้องมีการจองโต๊ะยืนยันก่อน
     public function order(Request $request): array
     {
         $payload = $request->all();
@@ -119,6 +123,7 @@ final class MenuController
         return ['order' => $order];
     }
 
+    // ตรวจสอบความถูกต้องของข้อมูลเมนู
     private function validate(Request $request): array
     {
         $payload = $request->all();

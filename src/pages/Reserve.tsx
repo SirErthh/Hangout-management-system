@@ -32,14 +32,19 @@ const extractDateKey = (raw?: string | null): string | null => {
 };
 
 const Reserve = () => {
+  // ใช้ช่วยเปลี่ยนหน้าเมื่อข้อมูลไม่พร้อม
   const navigate = useNavigate();
+  // สถานะของวันที่และจำนวนคนที่กรอกฟอร์ม
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [partySize, setPartySize] = useState<number>(2);
+  // เปิดปิดโมดัลเตือนให้ซื้อบัตรในวันที่มีอีเวนต์
   const [showEventDialog, setShowEventDialog] = useState(false);
+  // เก็บรายการวันที่มีอีเวนต์ (ไม่ซ้ำ)
   const [eventDates, setEventDates] = useState<string[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [eventsError, setEventsError] = useState<string | null>(null);
 
+  // ตอนเริ่มหน้า: ดึงข้อมูลอีเวนต์ที่ยังเปิดอยู่เพื่อบล็อกวันนั้นๆ
   useEffect(() => {
     const controller = new AbortController();
 
@@ -81,12 +86,15 @@ const Reserve = () => {
 
   const eventDateSet = useMemo(() => new Set(eventDates), [eventDates]);
 
+  // เช็กว่าวันที่เลือกตรงกับอีเวนต์หรือไม่
   const isEventDate = (selectedDate: Date | undefined) => {
     if (!selectedDate) return false;
     const dateStr = formatDateKey(selectedDate);
     return eventDateSet.has(dateStr);
   };
 
+  // ฟังก์ชันตอนกดปุ่ม “Reserve”
+  // ตรวจว่าถูกมั้ยและหยุดถ้ามีอีเวนต์วันนั้น
   const handleReserve = () => {
     if (!date) {
       toast.error("Please select a date");

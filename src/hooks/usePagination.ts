@@ -7,11 +7,14 @@ type UsePaginationOptions = {
 
 export const usePagination = <T,>(items: T[], options: UsePaginationOptions = {}) => {
   const { pageSize = 10, resetKey } = options;
+  // หน้าปัจจุบัน
   const [page, setPage] = useState(1);
 
+  // คำนวณหาจำนวนหน้าทั้งหมด
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
 
   useEffect(() => {
+    // ปรับหน้าปัจจุบันถ้าเกินจำนวนหน้าทั้งหมด
     setPage((prev) => {
       if (totalPages === 0) return 1;
       return Math.min(Math.max(prev, 1), totalPages);
@@ -19,11 +22,13 @@ export const usePagination = <T,>(items: T[], options: UsePaginationOptions = {}
   }, [totalPages]);
 
   useEffect(() => {
+    // รีเซ็ตหน้าเป็น 1 เมื่อ resetKey เปลี่ยน
     if (resetKey === undefined) return;
     setPage(1);
   }, [resetKey]);
 
   const pageItems = useMemo(() => {
+    // ตัด slice รายการเฉพาะหน้าปัจจุบัน
     const start = (page - 1) * pageSize;
     return items.slice(start, start + pageSize);
   }, [items, page, pageSize]);
@@ -42,4 +47,3 @@ export const usePagination = <T,>(items: T[], options: UsePaginationOptions = {}
     totalItems: items.length,
   };
 };
-

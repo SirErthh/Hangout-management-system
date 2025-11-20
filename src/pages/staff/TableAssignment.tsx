@@ -18,12 +18,14 @@ const TableAssignment = () => {
   const location = useLocation();
   const reservation = location.state?.reservation;
 
+  // เก็บข้อมูลโต๊ะ สถานะโหลด และโหมดรวมโต๊ะ
   const [tables, setTables] = useState<TableRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTableIds, setSelectedTableIds] = useState<number[]>([]);
   const [assigning, setAssigning] = useState(false);
   const [combineMode, setCombineMode] = useState(false);
 
+  // โหลดโต๊ะทั้งหมด
   useEffect(() => {
     const controller = new AbortController();
 

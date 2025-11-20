@@ -10,6 +10,7 @@ use RuntimeException;
 
 final class UserController
 {
+    // ลิสต์ผู้ใช้ทั้งหมด (เฉพาะแอดมิน)
     public function index(Request $request): array
     {
         $this->ensureAdmin($request);
@@ -17,6 +18,7 @@ final class UserController
         return ['users' => UserService::all()];
     }
 
+    // update role user
     public function updateRole(Request $request): array
     {
         $this->ensureAdmin($request);

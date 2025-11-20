@@ -24,6 +24,7 @@ type LinkConfig = {
 };
 
 const Sidebar = ({ role }: SidebarProps) => {
+  // เมนูลูกค้าทั่วไป
   const customerLinks: LinkConfig[] = [
     { to: "/customer", icon: Home, label: "Home", end: true },
     { to: "/events", icon: Calendar, label: "Events", end: true },
@@ -32,6 +33,7 @@ const Sidebar = ({ role }: SidebarProps) => {
     { to: "/my-orders", icon: ShoppingBag, label: "My Orders", end: true },
   ];
 
+  // เมนูสำหรับสตาฟ
   const staffLinks: LinkConfig[] = [
     { to: "/staff", icon: LayoutDashboard, label: "Dashboard", end: true },
     { to: "/staff/tickets", icon: Ticket, label: "Ticket Orders", end: true },
@@ -39,6 +41,7 @@ const Sidebar = ({ role }: SidebarProps) => {
     { to: "/staff/fnb", icon: UtensilsCrossed, label: "F&B / Kitchen", end: true },
   ];
 
+  // เมนูสำหรับแอดมิน
   const adminLinks: LinkConfig[] = [
     { to: "/admin", icon: LayoutDashboard, label: "Dashboard", end: true },
     { to: "/admin/users", icon: Users, label: "Users & Roles", end: true },
@@ -47,6 +50,7 @@ const Sidebar = ({ role }: SidebarProps) => {
     { to: "/admin/closure", icon: DollarSign, label: "Day Closure", end: true },
   ];
 
+  // เลือกเมนูตามบทบาทผู้ใช้
   let links = customerLinks;
   if (role === "staff") links = staffLinks;
   if (role === "admin") links = adminLinks;
@@ -57,6 +61,7 @@ const Sidebar = ({ role }: SidebarProps) => {
         {links.map((link) => {
           const Icon = link.icon;
           return (
+            // NavLink แสดงสถานะ active ด้วยสีพิเศษ
             <NavLink
               key={link.to}
               to={link.to}

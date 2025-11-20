@@ -57,6 +57,7 @@ type FnbOrder = {
 };
 
 const MyOrders = () => {
+  // เก็บข้อมูลของแต่ละหมวด (ตั๋ว, โต๊ะ, FnB)
   const [ticketOrders, setTicketOrders] = useState<TicketOrder[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [fnbOrders, setFnbOrders] = useState<FnbOrder[]>([]);
@@ -66,6 +67,7 @@ const MyOrders = () => {
   const reservationPagination = usePagination(reservations);
   const fnbPagination = usePagination(fnbOrders);
 
+  // โหลดข้อมูลทั้งหมดตอนเปิดหน้า และเรียงข้อมูลจากล่าสุดไปเก่าสุด
   useEffect(() => {
     const controller = new AbortController();
     const safeDate = (value?: string | null) => {
@@ -107,6 +109,7 @@ const MyOrders = () => {
     return () => controller.abort();
   }, []);
 
+  // ประวัติการสั่งซื้อตั๋ว
   const renderTicketContent = () => {
     if (loading) {
       return (
@@ -224,6 +227,7 @@ const MyOrders = () => {
     );
   };
 
+  // ประวัติการจองโต๊ะ
   const renderReservationsContent = () => {
     if (loading) {
       return (
@@ -328,6 +332,7 @@ const MyOrders = () => {
     );
   };
 
+  // ประวัติคำสั่งซื้ออาหารและเครื่องดื่ม
   const renderFnbContent = () => {
     if (loading) {
       return (

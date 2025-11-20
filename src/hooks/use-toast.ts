@@ -2,6 +2,7 @@ import * as React from "react";
 
 import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
 
+// จำกัดจำนวน toast ที่แสดงพร้อมกัน
 const TOAST_LIMIT = 1;
 const TOAST_REMOVE_DELAY = 1000000;
 
@@ -12,6 +13,7 @@ type ToasterToast = ToastProps & {
   action?: ToastActionElement;
 };
 
+// รวมประเภท action ที่ reducer รองรับ
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
   UPDATE_TOAST: "UPDATE_TOAST",
@@ -21,6 +23,7 @@ const actionTypes = {
 
 let count = 0;
 
+// สร้าง id ใหม่เพิ่มเลขไปเรื่อยๆ
 function genId() {
   count = (count + 1) % Number.MAX_SAFE_INTEGER;
   return count.toString();
@@ -50,6 +53,7 @@ interface State {
   toasts: ToasterToast[];
 }
 
+// เก็บ timeout เพื่อสั่งลบ toast แบบดีเลย์
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
 const addToRemoveQueue = (toastId: string) => {
@@ -71,12 +75,14 @@ const addToRemoveQueue = (toastId: string) => {
 export const reducer = (state: State, action: Action): State => {
   switch (action.type) {
     case "ADD_TOAST":
+      // เพิ่ม toast ใหม่ไว้ด้านหน้าและตัดจำนวนเกิน limit
       return {
         ...state,
         toasts: [action.toast, ...state.toasts].slice(0, TOAST_LIMIT),
       };
 
     case "UPDATE_TOAST":
+      // ปรับข้อมูล toast ตาม id ที่ส่งเข้ามา
       return {
         ...state,
         toasts: state.toasts.map((t) => (t.id === action.toast.id ? { ...t, ...action.toast } : t)),
@@ -85,8 +91,7 @@ export const reducer = (state: State, action: Action): State => {
     case "DISMISS_TOAST": {
       const { toastId } = action;
 
-      // ! Side effects ! - This could be extracted into a dismissToast() action,
-      // but I'll keep it here for simplicity
+      // มี side effect เล็กน้อย ถ้าระบุ toastId จะตั้งคิวลบเฉพาะอันนั้น
       if (toastId) {
         addToRemoveQueue(toastId);
       } else {
@@ -108,6 +113,7 @@ export const reducer = (state: State, action: Action): State => {
       };
     }
     case "REMOVE_TOAST":
+      // เอา toast ออกจาก state เมื่อหมดเวลา
       if (action.toastId === undefined) {
         return {
           ...state,
@@ -121,6 +127,7 @@ export const reducer = (state: State, action: Action): State => {
   }
 };
 
+// listener pool ให้ทุก component sync state toast
 const listeners: Array<(state: State) => void> = [];
 
 let memoryState: State = { toasts: [] };
@@ -137,6 +144,7 @@ type Toast = Omit<ToasterToast, "id">;
 function toast({ ...props }: Toast) {
   const id = genId();
 
+  // ฟังก์ชันสำหรับ update และ dismiss toast ตาม id เดียวกัน
   const update = (props: ToasterToast) =>
     dispatch({
       type: "UPDATE_TOAST",
@@ -167,6 +175,7 @@ function useToast() {
   const [state, setState] = React.useState<State>(memoryState);
 
   React.useEffect(() => {
+    // สมัครเป็นผู้ฟัง state toast แล้วถอดออกเมื่อ unmount
     listeners.push(setState);
     return () => {
       const index = listeners.indexOf(setState);
@@ -179,6 +188,7 @@ function useToast() {
   return {
     ...state,
     toast,
+    // ส่งต่อ helper dismiss ให้ component เรียกใช้ได้
     dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
   };
 }

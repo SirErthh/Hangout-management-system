@@ -10,6 +10,7 @@ use RuntimeException;
 
 final class AdminDashboardController
 {
+    // แดชบอร์ดแอดมิน ต้องตรวจว่า role เป็น admin เท่านั้น
     public function summary(Request $request): array
     {
         $user = $request->user();

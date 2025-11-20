@@ -1,7 +1,9 @@
 import { toast } from "sonner";
 
+// URL เริ่มต้นถัาไม่ได้ตั้งค่า .env
 const DEFAULT_BASE_URL = "";
 
+// สร้าง base URL จาก env แล้วตัด / ท้ายสุดออก
 export const API_BASE_URL = (
   import.meta.env.VITE_API_URL as string | undefined
 )?.replace(/\/+$/, "") ?? DEFAULT_BASE_URL;
@@ -16,10 +18,12 @@ type RequestOptions = {
 
 type ApiError = Error & { status?: number; payload?: unknown };
 
+// คีย์เก็บ token / user ใน localStorage
 const TOKEN_STORAGE_KEY = "hangout.auth.token";
 const USER_STORAGE_KEY = "hangout.auth.user";
 
 export const authStorage = {
+  // จัดการ token ใน localStorage
   getToken(): string | null {
     return localStorage.getItem(TOKEN_STORAGE_KEY);
   },
@@ -49,11 +53,13 @@ export const authStorage = {
   },
 };
 
+// สร้าง URL พร้อม base
 const buildUrl = (path: string) => {
   const sanitizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE_URL}${sanitizedPath}`;
 };
 
+// ฟังก์ชันหลักสำหรับเรียก API
 export async function apiRequest<T>(
   path: string,
   { method = "GET", body, auth = false, headers = {}, signal }: RequestOptions = {},
@@ -94,6 +100,7 @@ export async function apiRequest<T>(
   return payload as T;
 }
 
+// helper แสดง error แบบ Toast
 export function handleApiError(error: unknown, fallback = "Something went wrong") {
   if (error instanceof Error && "status" in error) {
     const message = (error as ApiError).payload && typeof (error as ApiError).payload === "object"
@@ -112,6 +119,7 @@ export function handleApiError(error: unknown, fallback = "Something went wrong"
 }
 
 export const api = {
+  // --- Auth (ล็อกอิน/สมัคร/ดึงข้อมูลตนเอง) ---
   login: (credentials: { email: string; password: string }) =>
     apiRequest<{ token: string; user: any }>("/api/auth/login", {
       method: "POST",
@@ -126,6 +134,7 @@ export const api = {
     apiRequest<{ user: any }>("/api/auth/me", {
       auth: true,
     }),
+  // --- Event & เมนู (ฝั่งลูกค้า/แอดมิน) ---
   getEvents: (options?: { activeOnly?: boolean; signal?: AbortSignal }) => {
     const query = options?.activeOnly ? "?active=1" : "";
     return apiRequest<{ events: any[] }>(`/api/events${query}`, { signal: options?.signal });
@@ -163,6 +172,7 @@ export const api = {
       method: "DELETE",
       auth: true,
     }),
+  // --- สั่งซื้อบัตรเข้าร่วมงาน ---
   orderTickets: (eventId: number, payload: { quantity: number; price: number; reservation: any }) =>
     apiRequest<{ order: any }>(`/api/events/${eventId}/orders`, {
       method: "POST",
@@ -186,6 +196,7 @@ export const api = {
       method: "DELETE",
       auth: true,
     }),
+  // --- รายการคำสั่งซื้อบัตรสำหรับลูกค้า/สตาฟ ---
   getTicketOrders: (options: {
     mine?: boolean;
     status?: string;
@@ -246,6 +257,7 @@ export const api = {
       body: note ? { note } : undefined,
       auth: true,
     }),
+  // --- Dashboard แสดงสถิติสตาฟ/แอดมิน ---
   getStaffDashboard: () =>
     apiRequest<{ date: string; ticketsToday: number; reservationsToday: number; fnbOrdersToday: number; guestsToday: number }>(
       "/api/staff/dashboard",
@@ -256,12 +268,14 @@ export const api = {
       "/api/admin/dashboard",
       { auth: true },
     ),
+  // --- การอัปโหลดรูป ---
   uploadImage: (dataUrl: string) =>
     apiRequest<{ url: string; path: string }>("/api/uploads", {
       method: "POST",
       body: { dataUrl },
       auth: true,
     }),
+  // --- การจองโต๊ะ ---
   createReservation: (payload: { date: string; partySize: number; note?: string; event_id?: number }) =>
     apiRequest<{ reservation: any }>("/api/reservations", {
       method: "POST",
@@ -310,6 +324,7 @@ export const api = {
       signal: options?.signal,
     });
   },
+  // --- โต๊ะและการจัดที่นั่ง ---
   getAvailableTables: (eventId: number, signal?: AbortSignal) =>
     apiRequest<{ tables: any[] }>(`/api/events/${eventId}/available-tables`, {
       auth: true,
@@ -332,6 +347,7 @@ export const api = {
       auth: true,
       signal,
     }),
+  // --- ออเดอร์อาหารและเครื่องดื่ม ---
   getFnbOrders: (options: {
     mine?: boolean;
     status?: string;
@@ -375,6 +391,7 @@ export const api = {
       body: { status },
       auth: true,
     }),
+  // --- ปิด/เปิดรอบวันทำการ ---
   getDayClosure: () =>
     apiRequest<{
       closure: any | null;
@@ -403,6 +420,7 @@ export const api = {
         auth: true,
       },
     ),
+  // --- ผู้ใช้และข้อมูลส่วนตัว ---
   getUsers: (signal?: AbortSignal) =>
     apiRequest<{ users: any[] }>("/api/users", {
       auth: true,

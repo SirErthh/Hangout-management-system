@@ -10,6 +10,7 @@ use RuntimeException;
 
 final class TicketController
 {
+    // ลิสต์ order ตั๋วทั้งหมด
     public function index(Request $request): array
     {
         $filters = [];
@@ -58,6 +59,7 @@ final class TicketController
         ];
     }
 
+    // สตาฟตั้งสถานะ order เช่น pending/confirmed
     public function updateStatus(Request $request): array
     {
         $this->ensureStaff($request);
@@ -71,6 +73,7 @@ final class TicketController
         return ['order' => $order];
     }
 
+    // ยืนยันโค้ดเดี่ยวตอน check-in
     public function confirmTicket(Request $request): array
     {
         $this->ensureStaff($request);
@@ -85,6 +88,7 @@ final class TicketController
         return ['order' => $order];
     }
 
+    // ยืนยันโค้ดทั้งหมดสำหรับ order นั้น
     public function confirmAll(Request $request): array
     {
         $this->ensureStaff($request);

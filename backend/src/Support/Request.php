@@ -22,6 +22,7 @@ final class Request
         $this->headers = $headers;
     }
 
+    // รวมข้อมูลจาก superglobal และ body JSON มาเป็น Request object
     public static function capture(array $params = []): self
     {
         $headers = [];
@@ -69,6 +70,7 @@ final class Request
         return $this->headers[$key] ?? $default;
     }
 
+    // ดึง token จาก header Authorization
     public function bearerToken(): ?string
     {
         $authHeader = $this->header('Authorization');
@@ -81,11 +83,13 @@ final class Request
         return null;
     }
 
+    // ตั้งค่า user หลังจากตรวจสอบ token แล้ว
     public function setUser(array $user): void
     {
         $this->user = $user;
     }
 
+    // ดึงข้อมูลผู้ใช้ที่ตรวจสอบแล้ว
     public function user(): ?array
     {
         return $this->user;

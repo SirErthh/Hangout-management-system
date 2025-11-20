@@ -57,6 +57,7 @@ const DATE_RANGE_OPTIONS = [
 ];
 
 const StaffTickets = () => {
+  // สถานะหลักของตารางคำสั่งซื้อบัตร
   const [orders, setOrders] = useState<TicketOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -80,6 +81,7 @@ const StaffTickets = () => {
   });
   const [stats, setStats] = useState(DEFAULT_STATS);
 
+  // debounce การค้นหา
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setDebouncedSearch(searchQuery.trim());
@@ -88,6 +90,7 @@ const StaffTickets = () => {
     return () => window.clearTimeout(timeout);
   }, [searchQuery]);
 
+  // โหลดข้อมูลจาก API ตาม filter/pagination
   const loadOrders = useCallback(
     async (pageToLoad: number, signal?: AbortSignal) => {
       setLoading(true);
@@ -144,6 +147,7 @@ const StaffTickets = () => {
     setOrders((prev) => prev.map((order) => (order.id === updated.id ? updated : order)));
   };
 
+  // กดอัปเดตสถานะคำสั่งซื้อ
   const updateOrderStatus = async (orderId: number, newStatus: TicketOrder["status"]) => {
     try {
       const { order } = await api.updateTicketOrderStatus(orderId, newStatus);
@@ -155,6 +159,7 @@ const StaffTickets = () => {
     }
   };
 
+  // ยืนยันตั๋วเดี่ยว
   const confirmTicket = async (orderId: number, ticketCode: string, note?: string) => {
     try {
       const { order } = await api.confirmTicket(orderId, ticketCode, note);
@@ -168,6 +173,7 @@ const StaffTickets = () => {
     }
   };
 
+  // ยืนยันตั๋วทั้งหมดในรอบเดียว
   const confirmAllTickets = async (orderId: number, note?: string) => {
     try {
       const { order } = await api.confirmAllTickets(orderId, note);

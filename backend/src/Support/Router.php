@@ -54,6 +54,7 @@ final class Router
         $this->add('DELETE', $path, $callback, $middleware);
     }
 
+    // ค้นหา route ที่ตรงกับ method/uri แล้วเรียก handler
     public function dispatch(string $method, string $uri): void
     {
         $method = strtoupper($method);
@@ -104,6 +105,7 @@ final class Router
         (new Response())->json(['message' => 'Not found'], 404);
     }
 
+    // สร้าง stack ของ middleware แล้วเรียก handler ท้ายสุด
     private function makeMiddlewareStack(array $middleware, callable $handler): callable
     {
         $stack = array_reverse($middleware);
@@ -125,6 +127,7 @@ final class Router
         return $next;
     }
 
+    //  เช็คชนิด handler แล้วส่ง request/response ตามจำนวนพารามิเตอร์ที่รองรับ
     private function invokeHandler(callable $handler, Request $request, Response $response): mixed
     {
         if (is_array($handler)) {

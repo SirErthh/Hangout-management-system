@@ -16,6 +16,7 @@ type PaginationControlsProps = {
   className?: string;
 };
 
+// สร้างลิสต์หน้าที่จะแสดงใน pagination
 const buildPageList = (current: number, total: number): Array<number | "ellipsis-start" | "ellipsis-end"> => {
   if (total <= 5) {
     return Array.from({ length: total }, (_, idx) => idx + 1);
@@ -42,8 +43,10 @@ const buildPageList = (current: number, total: number): Array<number | "ellipsis
 };
 
 export const PaginationControls = ({ page, totalPages, onPageChange, className }: PaginationControlsProps) => {
+  // ถ้ามีหน้าเดียวไม่ต้องแสดงปุ่ม
   if (totalPages <= 1) return null;
 
+  // ไปยังหน้าที่ระบุ
   const goTo = (next: number) => {
     if (next === page || next < 1 || next > totalPages) return;
     onPageChange(next);
@@ -98,4 +101,3 @@ export const PaginationControls = ({ page, totalPages, onPageChange, className }
     </Pagination>
   );
 };
-

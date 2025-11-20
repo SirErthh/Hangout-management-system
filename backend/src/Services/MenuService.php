@@ -8,6 +8,7 @@ use PDO;
 
 final class MenuService
 {
+    // ดึงเมนูทั้งหมดแบ่งตาม type
     public static function all(): array
     {
         $stmt = Database::connection()->query(
@@ -19,6 +20,7 @@ final class MenuService
         return array_map([self::class, 'transform'], $stmt->fetchAll(PDO::FETCH_ASSOC));
     }
 
+    // เพิ่มเมนูใหม่ในระบบ F&B
     public static function create(array $data): array
     {
         $pdo = Database::connection();
@@ -38,6 +40,7 @@ final class MenuService
         return self::find((int)$pdo->lastInsertId()) ?? [];
     }
 
+    // อัปเดตข้อมูลเมนูเดิม
     public static function update(int $id, array $data): array
     {
         $stmt = Database::connection()->prepare(
@@ -63,6 +66,7 @@ final class MenuService
         return self::find($id) ?? [];
     }
 
+    // ลบเมนูและลบ order item ที่อ้างถึง หากไม่มี item เหลือก็ลบ order
     public static function delete(int $id): void
     {
         $pdo = Database::connection();
@@ -90,6 +94,7 @@ final class MenuService
         }
     }
 
+    // หาเมนูตาม id
     public static function find(int $id): ?array
     {
         $stmt = Database::connection()->prepare(

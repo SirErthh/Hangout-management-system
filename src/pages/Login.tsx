@@ -15,10 +15,12 @@ interface LoginProps {
 
 const Login = ({ onLogin, isBootstrapping = false }: LoginProps) => {
   const navigate = useNavigate();
+  // เก็บค่าฟอร์มและสถานะส่งคำขอ
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // ฟังก์ชันกดเข้าสู่ระบบ
   const handleLogin = async () => {
     if (!email || !password) {
       toast.error("Invalid credentials", { description: "Email and password are required" });
@@ -73,8 +75,8 @@ const Login = ({ onLogin, isBootstrapping = false }: LoginProps) => {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
-          <Button 
-            className="w-full bg-gradient-primary hover:opacity-90" 
+          <Button
+            className="w-full bg-gradient-primary hover:opacity-90"
             onClick={handleLogin}
             disabled={submitting || isBootstrapping}
           >
