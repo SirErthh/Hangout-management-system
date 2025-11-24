@@ -4,6 +4,15 @@
 
 Database course final project 
 
+## Project Description
+
+Hangout Management System is a web platform for bars, clubs, or event venues to centralize ticketing, table reservations, and food & beverage orders in one flow. Customers can browse events, pick seats, reserve tables, and place pre-orders. Front-of-house staff track ticketing and reservation queues, assign tables, and update F&B order status with payments. Managers and admins configure events, menus, and users, monitor dashboards, and run day-closure to review totals at the end of each shift.
+
+Target Users:
+- Customers: browse events, buy tickets, reserve tables, and order food/drinks.
+- Staff: process ticketing and reservations, assign tables, and manage F&B fulfillment and payments.
+- Managers/Admins: manage inventory/menu and events, oversee users, and review sales via day closure.
+
 **Use your preferred IDE**
 
 If you want to work locally using your own IDE, you can clone this repo and push changes.
